@@ -130,3 +130,19 @@ nav img {
 nav img:hover {
     transform: scale(1.2);
 }
+
+
+/* Contenedor de tablas con Flexbox */
+.tablas-container {
+    display: flex;
+    gap: 20px;                 
+    justify-content: center;   
+    align-items: flex-start;   
+    flex-wrap: wrap;           
+}
+
+/* Secciones de tablas */
+.tablas-container section {
+    flex: 1 1 500px;           
+    max-width: 600px;         
+}
