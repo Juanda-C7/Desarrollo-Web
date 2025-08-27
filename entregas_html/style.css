@@ -1,0 +1,15 @@
+/* style.css */
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Coiny&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bubblegum+Sans&display=swap');
+
+
+/* Fuentes y base */
+body {
+    font-family: 'Bubblegum Sans', cursive;
+    background-color: #1b1b1b;
+    color: #f0f0f0;
+    margin: 20px;
+    line-height: 1.6;
+}
+
