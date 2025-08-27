@@ -159,3 +159,23 @@ nav img:hover {
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     }
 }
+
+
+/* Desktop (>1024px) */
+@media screen and (min-width: 1025px) {
+    body {
+        font-size: 1.4rem;
+    }
+    h1 {
+        font-size: 3vw;
+    }
+    h2, h3 {
+        font-size: 2.2rem;
+    }
+    .tablas-container section {
+        flex: 1 1 45%;
+    }
+    .imagenes-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
