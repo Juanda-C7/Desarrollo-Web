@@ -13,6 +13,7 @@ body {
     line-height: 1.6;
 
     padding-top: 120px; 
+    font-size: 1.2rem;
 }
 
 /* Encabezados */
@@ -40,6 +41,7 @@ h2, h3 {
     margin-top: 20px;
     margin-bottom: 10px;
     text-shadow: 2px 2px #000;
+    font-size: 2rem;
 }
 
 /* Enlaces */
@@ -145,4 +147,19 @@ nav img:hover {
 .tablas-container section {
     flex: 1 1 500px;           
     max-width: 600px;         
+}
+
+.imagenes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+    gap: 20px;          
+    justify-items: center; 
+    margin-top: 20px;
+}
+
+.imagenes-grid img {
+    width: 100%;        
+    height: auto;       
+    border: 3px solid #FF8E00;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
