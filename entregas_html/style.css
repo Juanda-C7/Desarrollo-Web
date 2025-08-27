@@ -141,3 +141,21 @@ nav img:hover {
     }
 }
 
+/* iPad Pro (~1024px ancho) */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+    body {
+        font-size: 1.3rem;
+    }
+    h1 {
+        font-size: 4vw;
+    }
+    h2, h3 {
+        font-size: 2.5rem;
+    }
+    .tablas-container section {
+        flex: 1 1 45%;
+    }
+    .imagenes-grid {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+}
