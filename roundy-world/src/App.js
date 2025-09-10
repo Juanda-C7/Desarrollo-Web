@@ -3,11 +3,12 @@ import Phaser from "phaser";
 import p5 from "p5";
 
 /*
-  Versión mejorada:
-  - p5 dibuja la cocina en el fondo
-  - Phaser mantiene físicas y colisiones (player invisible)
-  - SVG encima representa al jugador (cara, brazos, piernas) y se mueve según Phaser
-  - Minijuego y UI en React siguen igual
+  Responsive upgrade notes:
+  - Añadí un "stage" (800x600) que se escala uniformemente para escritorio/tablet/móvil.
+  - Phaser y p5 siguen usando la zona lógica 800x600 (por tanto las colisiones físicas NO cambian).
+  - Visualmente todo se escala con CSS transform: scale(s). La posición del SVG se calcula en coordenadas lógicas (0..800,0..600) y al ser hijo del stage queda alineado con la física.
+  - Un listener de resize mantiene la escala adecuada; el juego queda centrado dentro del wrapper.
+  - No cambié la lógica de colisiones ni de física: la física se sigue ejecutando en el tamaño lógico 800x600, por eso nada importante "se mueve de lugar" en cuanto a colisiones.
 */
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
   const svgRef = useRef(null);
   const rafRef = useRef(null);
   const containerRef = useRef(null);
+  const stageRef = useRef(null);
 
   const ingredients = [
     { name: "🥬 Lechuga", color: "#4caf50" },
@@ -47,32 +49,36 @@ export default function App() {
   // Helper to convert Phaser-style hex number (0xff0000) to CSS hex "#ff0000"
   const numToCssHex = (num) => "#" + num.toString(16).padStart(6, "0");
 
+  // ---------- INITIALIZE p5 + Phaser when entering world ----------
   useEffect(() => {
-    // --- cuando entramos al mundo inicializamos p5 y Phaser ---
     if (step === "world" && !phaserRef.current) {
-      // 1) Inicializar p5 (fondo cocina)
+      // --- p5 sketch ---
       const sketch = (s) => {
+        // logical stage size (Phaser physics use the same logical size)
         const W = 800,
           H = 600;
 
         s.setup = () => {
-          s.createCanvas(W, H);
+          // we will create canvas inside an element within the stage (so it gets scaled)
+          s.createCanvas(W, H).parent("p5-container");
         };
 
         s.draw = () => {
-          // Suelo (baldosa)
           s.push();
           s.noStroke();
-          s.background("#e9f3fb"); // cielo por ventana
+          s.background("#e9f3fb");
+
           // pared
           s.fill("#f2e9dc");
           s.rect(0, 0, W, 220);
+
           // ventana
           s.fill("#9fd3ff");
           s.rect(520, 30, 180, 110, 8);
           s.fill("#fff7");
           s.rect(540, 50, 140, 70, 6);
-          // azulejos del suelo (cuadrícula)
+
+          // suelo y tiles
           s.translate(0, 220);
           s.fill("#f8f2e6");
           s.rect(0, 0, W, H - 220);
@@ -86,29 +92,25 @@ export default function App() {
           }
           s.pop();
 
-          // Encima: muebles vectoriales sencillos (mesa central)
+          // mesa
           s.push();
           s.noStroke();
-          // sombra de mesa
           s.fill("#00000022");
           s.ellipse(400, 330, 160, 30);
-          // mesa
           s.fill("#cd853f");
           s.rectMode(s.CENTER);
           s.rect(400, 300, 220, 80, 8);
-          // patas de mesa
           s.fill("#8b5a2b");
           s.rect(330, 350, 18, 60, 4);
           s.rect(470, 350, 18, 60, 4);
           s.pop();
 
-          // cocina: estufa a la izquierda
+          // estufa
           s.push();
           s.fill("#c7c7c7");
           s.rect(90, 280, 140, 120, 6);
           s.fill("#333");
           s.rect(90, 250, 100, 20, 4);
-          // olla con vapor animado
           s.fill("#8b0000");
           s.rect(90, 260, 40, 20, 4);
           const t = s.millis() / 800;
@@ -121,7 +123,7 @@ export default function App() {
           }
           s.pop();
 
-          // estantes y detalles derecho
+          // estantes
           s.push();
           s.fill("#b3c8a6");
           s.rect(700, 160, 140, 60, 6);
@@ -131,15 +133,16 @@ export default function App() {
         };
       };
 
+      // mount p5 inside stage's p5-container
       p5Ref.current = new p5(sketch, document.getElementById("p5-container"));
 
-      // 2) Inicializar Phaser (motor físico / colisiones)
+      // --- Phaser ---
       const config = {
         type: Phaser.AUTO,
         width: 800,
         height: 600,
-        parent: "phaser-wrapper", // div que contendrá el canvas
-        transparent: true, // importante: transparente para ver el p5 detrás
+        parent: "game-stage", // ahora apuntamos al elemento stage
+        transparent: true,
         physics: {
           default: "arcade",
           arcade: { gravity: { y: 0 }, debug: false },
@@ -152,12 +155,9 @@ export default function App() {
       let table;
       let keyA;
 
-      function preload() {
-        // no sprites externos; todo se hará con formas y SVG encima
-      }
+      function preload() {}
 
       function create() {
-        // floor & walls collision bodies (invisibles)
         const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
         this.physics.add.existing(floor, true);
 
@@ -169,34 +169,28 @@ export default function App() {
         ];
         walls.forEach((w) => this.physics.add.existing(w, true));
 
-        // Mesa (cuerpo de colisión) - coincide con el dibujo de p5
         table = this.add.rectangle(400, 300, 220, 80, 0x000000, 0);
         this.physics.add.existing(table, true);
 
-        // Sillas como obstáculos
         const chair1 = this.add.rectangle(330, 350, 30, 30, 0x000000, 0);
         const chair2 = this.add.rectangle(470, 350, 30, 30, 0x000000, 0);
         this.physics.add.existing(chair1, true);
         this.physics.add.existing(chair2, true);
 
-        // Estufa/objetos
         const stove = this.add.rectangle(90, 280, 140, 120, 0x000000, 0);
         this.physics.add.existing(stove, true);
 
-        // Jugador (fisica) - invisible en Phaser; el SVG será la vista
-        player = this.add.circle(50, 300, 18, 0xffffff, 0); // alpha 0 shape
+        player = this.add.circle(50, 300, 18, 0xffffff, 0);
         this.physics.add.existing(player);
         player.body.setCollideWorldBounds(true);
         player.body.setCircle(18);
         player.body.setOffset(-18, -18);
 
-        // Colisiones físicas
         const obstacles = [...walls, table, chair1, chair2, stove];
         obstacles.forEach((obs) => {
           this.physics.add.collider(player, obs);
         });
 
-        // Exclamación (texto Phaser), se mostrará/ocultará según sandwichDone
         const exclamation = this.add
           .text(table.x, table.y - 60, "!", {
             font: "36px Arial",
@@ -206,15 +200,12 @@ export default function App() {
           .setOrigin(0.5, 0.5);
         window.tableExclamation = exclamation;
 
-        // Teclado
         cursors = this.input.keyboard.createCursorKeys();
         keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
 
-        // Exponer escena & player para React (lectura)
         window.phaserScene = this;
         window.phaserPlayer = player;
 
-        // La cámara centrada en el 'mapa' (no seguimos al jugador)
         this.cameras.main.centerOn(400, 300);
       }
 
@@ -228,21 +219,11 @@ export default function App() {
         if (cursors.up.isDown) player.body.setVelocityY(-speed);
         if (cursors.down.isDown) player.body.setVelocityY(speed);
 
-        // proximidad mesa
-        const dist = Phaser.Math.Distance.Between(
-          player.x,
-          player.y,
-          table.x,
-          table.y
-        );
+        const dist = Phaser.Math.Distance.Between(player.x, player.y, table.x, table.y);
 
         if (dist < 70) {
-          // mostrar hint (React lee showPressAHint desde setShowPressAHint)
-          // en lugar de setState desde Phaser (para evitar hooks desde fuera),
-          // exponemos la condición y React consulta en RAF loop
           window.nearTable = true;
           if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
-            // para abrir minijuego usamos un evento DOM custom para comunicarnos con React
             const ev = new CustomEvent("openSandwich");
             window.dispatchEvent(ev);
           }
@@ -255,21 +236,20 @@ export default function App() {
 
       phaserRef.current = new Phaser.Game(config);
 
-      // 3) RAF loop para sincronizar SVG (visual) con player (físico) y para chequear hints
+      // RAF loop: sincroniza SVG con las coordenadas lógicas del jugador
       const updateSvg = () => {
         try {
           const scene = window.phaserScene;
           const playerObj = window.phaserPlayer;
           const svgEl = svgRef.current;
-          const containerEl = containerRef.current;
-          if (scene && playerObj && svgEl && containerEl) {
-            // posicion relativa dentro del wrapper (800x600)
+          const stageEl = stageRef.current;
+          if (scene && playerObj && svgEl && stageEl) {
             const x = playerObj.x;
             const y = playerObj.y;
-            // colocar el svg centrado en (x,y)
+            // colocamos el svg en coordenadas lógicas (stage es 800x600)
             svgEl.style.left = `${x}px`;
             svgEl.style.top = `${y}px`;
-            // update hint (React state) by dispatching event; we will also set showPressAHint in response
+
             const near = !!window.nearTable;
             const ev = new CustomEvent("nearTableUpdate", { detail: { near } });
             window.dispatchEvent(ev);
@@ -281,9 +261,8 @@ export default function App() {
       };
       rafRef.current = requestAnimationFrame(updateSvg);
 
-      // 4) Event listener desde Phaser->React para abrir minijuego y nearTable updates
+      // Eventos hacia React
       const openListener = () => {
-        // abrir minijuego desde React
         setShowSandwichMinigame(true);
         setShowPressAHint(false);
         setSandwich([]);
@@ -294,18 +273,15 @@ export default function App() {
       window.addEventListener("openSandwich", openListener);
       window.addEventListener("nearTableUpdate", nearListener);
 
-      // Cleanup attachments on unmount or leaving world
       const cleanup = () => {
         window.removeEventListener("openSandwich", openListener);
         window.removeEventListener("nearTableUpdate", nearListener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
 
-      // store cleanup on phaserRef for later
       phaserRef.currentCleanup = cleanup;
     }
 
-    // cleanup when leaving world
     return () => {
       if (phaserRef.current) {
         if (phaserRef.currentCleanup) phaserRef.currentCleanup();
@@ -321,6 +297,45 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, color, sandwichDone]);
+
+  // --------- Scale / responsive handling (keeps logical 800x600 intact) ---------
+  useEffect(() => {
+    const updateScale = () => {
+      const wrapper = containerRef.current;
+      const stage = stageRef.current;
+      if (!wrapper || !stage) return;
+
+      // available area inside wrapper (we reserve vertical space for header/hud)
+      const maxW = Math.min(window.innerWidth * 0.95, 1000);
+      const maxH = Math.min(window.innerHeight * 0.72, 800);
+
+      // compute scale for logical 800x600
+      const scale = Math.max(0.45, Math.min(maxW / 800, maxH / 600)); // clamp minimum scale so UI remains usable
+
+      // set wrapper CSS (visual container) and apply uniform scale on stage
+      wrapper.style.width = `${Math.round(Math.min(maxW, 800 * scale))}px`;
+      wrapper.style.height = `${Math.round(Math.min(maxH, 600 * scale))}px`;
+
+      // stage keeps logical width/height but is scaled
+      stage.style.width = `800px`;
+      stage.style.height = `600px`;
+      stage.style.transformOrigin = "0 0";
+      stage.style.transform = `scale(${scale})`;
+
+      // store scale for debugging if needed
+      stage.dataset.scale = String(scale);
+
+      // center stage inside wrapper (the scaled stage has visual size 800*scale x 600*scale)
+      const visualW = 800 * scale;
+      const visualH = 600 * scale;
+      stage.style.marginLeft = `${Math.round((wrapper.clientWidth - visualW) / 2 / scale)}px`;
+      stage.style.marginTop = `${Math.round((wrapper.clientHeight - visualH) / 2 / scale)}px`;
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
 
   // Al terminar sandwich
   function finishSandwich() {
@@ -342,7 +357,7 @@ export default function App() {
     e.preventDefault();
   }
 
-  // --- Login UI ---
+  // ---------- UI render (login/customize/world) ----------
   if (step === "login") {
     return (
       <div
@@ -385,7 +400,6 @@ export default function App() {
     );
   }
 
-  // --- Personalización UI ---
   if (step === "customize") {
     return (
       <div
@@ -401,7 +415,6 @@ export default function App() {
       >
         <h1>Personaliza tu Roundy</h1>
 
-        {/* SVG preview simple */}
         <div
           style={{
             width: 140,
@@ -457,7 +470,7 @@ export default function App() {
     );
   }
 
-  // --- Mundo (Phaser canvas + p5 background + SVG player) ---
+  // Mundo (responsive)
   return (
     <div
       style={{
@@ -472,73 +485,75 @@ export default function App() {
     >
       <h2 style={{ textAlign: "center" }}>Hola {username}! Muévete con las flechas.</h2>
 
-      {/* wrapper centrado que contiene p5 (fondo), canvas Phaser (transparent) y svg jugador encima */}
+      {/* wrapper responsivo */}
       <div
         ref={containerRef}
         id="phaser-wrapper"
         style={{
-          width: 800,
-          height: 600,
+          // width/height se controlan desde JS para calcular escala
           position: "relative",
           margin: "12px auto",
           boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
           borderRadius: 12,
           overflow: "hidden",
           background: "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        {/* p5 background (z-index 0) */}
-        <div id="p5-container" style={{ position: "absolute", left: 0, top: 0, zIndex: 0 }} />
-
-        {/* Phaser canvas will be injected into this wrapper by config.parent = "phaser-wrapper" */}
-        {/* we don't add explicit div for phaser canvas beyond parent wrapper */}
-
-        {/* SVG player (z-index 2) */}
+        {/* stage: mantiene las coordenadas lógicas 800x600 y se escala uniformemente */}
         <div
-          ref={svgRef}
-          id="svg-player"
+          ref={stageRef}
+          id="game-stage"
           style={{
-            position: "absolute",
-            left: 50,
-            top: 300,
-            width: 64,
-            height: 64,
-            transform: "translate(-50%,-50%)",
-            zIndex: 2,
-            pointerEvents: "none", // don't block keyboard / drag
+            width: 800,
+            height: 600,
+            position: "relative",
           }}
         >
-          {/* inline SVG character */}
-          <svg viewBox="0 0 100 100" width="64" height="64">
-            <defs>
-              <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.18" />
-              </filter>
-            </defs>
-            {/* cuerpo (fill viene de color personalizado) */}
-            <g id="body">
-              <circle cx="50" cy="44" r="24" fill={numToCssHex(color)} stroke="#111" strokeWidth="1.8" filter="url(#shadow)" />
-              {/* ojos */}
-              <g id="eyes" transform="translate(0,0)">
-                <circle cx="42" cy="40" r="3.7" fill="#000" />
-                <circle cx="58" cy="40" r="3.7" fill="#000" />
+          {/* p5 and phaser will be inside this stage so they get scaled together */}
+          <div id="p5-container" style={{ position: "absolute", left: 0, top: 0, zIndex: 0 }} />
+
+          {/* SVG player (z-index 2) - se posiciona en coordenadas lógicas (0..800,0..600) */}
+          <div
+            ref={svgRef}
+            id="svg-player"
+            style={{
+              position: "absolute",
+              left: 50,
+              top: 300,
+              width: 64,
+              height: 64,
+              transform: "translate(-50%,-50%)",
+              zIndex: 2,
+              pointerEvents: "none",
+            }}
+          >
+            <svg viewBox="0 0 100 100" width="64" height="64">
+              <defs>
+                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.18" />
+                </filter>
+              </defs>
+              <g id="body">
+                <circle cx="50" cy="44" r="24" fill={numToCssHex(color)} stroke="#111" strokeWidth="1.8" filter="url(#shadow)" />
+                <g id="eyes" transform="translate(0,0)">
+                  <circle cx="42" cy="40" r="3.7" fill="#000" />
+                  <circle cx="58" cy="40" r="3.7" fill="#000" />
+                </g>
+                <path d="M40 52 Q50 60 60 52" stroke="#111" strokeWidth="2" fill="none" strokeLinecap="round" />
               </g>
-              {/* boca */}
-              <path d="M40 52 Q50 60 60 52" stroke="#111" strokeWidth="2" fill="none" strokeLinecap="round" />
-            </g>
-
-            {/* brazos - palitos (animación con CSS) */}
-            <g id="arms" transform="translate(0,0)">
-              <line x1="22" y1="50" x2="6" y2="66" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-              <line x1="78" y1="50" x2="94" y2="66" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-            </g>
-
-            {/* piernas */}
-            <g id="legs">
-              <line x1="42" y1="68" x2="36" y2="86" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-              <line x1="58" y1="68" x2="64" y2="86" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-            </g>
-          </svg>
+              <g id="arms" transform="translate(0,0)">
+                <line x1="22" y1="50" x2="6" y2="66" stroke="#111" strokeWidth="4" strokeLinecap="round" />
+                <line x1="78" y1="50" x2="94" y2="66" stroke="#111" strokeWidth="4" strokeLinecap="round" />
+              </g>
+              <g id="legs">
+                <line x1="42" y1="68" x2="36" y2="86" stroke="#111" strokeWidth="4" strokeLinecap="round" />
+                <line x1="58" y1="68" x2="64" y2="86" stroke="#111" strokeWidth="4" strokeLinecap="round" />
+              </g>
+            </svg>
+          </div>
         </div>
       </div>
 
@@ -627,12 +642,10 @@ export default function App() {
               background: "#fbfbfb",
             }}
           >
-            {/* pan inferior */}
             <div style={{ width: 140, height: 20, background: "#deb887", borderRadius: 6, margin: "6px 0" }} />
             {sandwich.map((ing, i) => (
               <div key={i} style={{ width: 140, height: 18, background: ing.color, borderRadius: 5, margin: "5px 0" }} />
             ))}
-            {/* pan superior */}
             <div style={{ width: 140, height: 20, background: "#deb887", borderRadius: 6, margin: "6px 0" }} />
           </div>
 
