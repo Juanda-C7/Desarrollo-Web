@@ -3,174 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <title>Roundy World</title>
     <link rel="icon" type="image/jpg" href="imgs/Roundy Roundler Circle.png">
 </head>
 <body>
-
-    <h1>Roundy World</h1>
-    <h2>Descubre más de este nuevo juego online</h2>
-    <a href="#linkedin">Ve hasta la información del creador</a>
-    <h3>Pasos para jugar:</h3>
-    <ol>
-  <li>Ingresa a la página de Roundy World</li>
-  <li>Crea tu cuenta</li>
-  <li>Rellena los datos que te solicitaremos</li>
-  <li>Estas listo para empezar a jugar!!!</li>
-  </ol>
-  <h3>Objetivos del proyecto</h3>
-    <ul>
-    <li>Crear un espacio online seguro y divertido para niños y adolecentes</li>
-    <li>Brindar herramientas que desarrollen la creatividad</li>
-    <li>Fomentar la educación gamificada</li>
-    </ul>
-
-    <h3>Elementos del juego</h3>
-    <ol>
-    <li>Personajes
-    <ul>
-    <li>Personita personalizable (Tú)</li>
-    <li>Mascotas</li>
-    <li>Otros usuarios</li>
-    </ul>
-    </li>
-    <li>Ubicaciones
-      <ul>
-    <li>Tu casa personalizable</li>
-    <li>Lugares de trabajo (minijuegos)</li>
-    <li>Universidad (aprendizaje por juegos)</li>
-    <li>Tiendas(coleccionables, mascotas, etc.)</li>
-    <li>Otros hogares de usuarios</li>
-    </ul>
-<li>Educación
-      <ul>
-    <li>Minijuegos de preguntas</li>
-    <li>Distintas carreras(ingeniería, medicina, economía, etc)</li>
-    <li>Gamificación para mayor diversión</li>
-    <li>Distintos temas y cursos</li>
-    </ul>
-    </ol>
-
-    <a href="imgs/Info_juego.pdf" download>
-      <img src="imgs/Descarga.png" alt="Linkedin" width="250" height="50">
-    </a>
-
+    <!-- Background Image Container -->
+    <div id="backgroundImage" class="background-image-container"></div>
     
-   <h3>Bienvenido a Roundy World</h3>
-<div class="imagenes-grid">
-    <img src="imgs/roundy-constructor.png" alt="Logo">
-    <img src="imgs/roundy-pizza.png" alt="Logo">
-    <img src="imgs/Roundy_worlds.png" alt="Logo">
-    <img src="imgs/roundy-student-circuit.png" alt="Logo">
-    <img src="imgs/roundy-student.png" alt="Logo">
-</div>
+    <div class="container-fluid">
+        <h1>Roundy World</h1>
+        <h2>Descubre más de este nuevo juego online</h2>
+        <a href="#linkedin" class="scroll-link">Ve hasta la información del creador</a>
 
+        <!-- Interactive Menu for Lists -->
+        <div class="interactive-menu mt-5">
+            <h3 class="text-center mb-4">Información del Juego</h3>
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="menu-buttons d-flex flex-column gap-3 mb-4">
+                        <button class="btn btn-minecraft" data-target="pasos">
+                            <i class="fas fa-play-circle me-2"></i>Pasos para jugar
+                        </button>
+                        <button class="btn btn-minecraft" data-target="objetivos">
+                            <i class="fas fa-bullseye me-2"></i>Objetivos del proyecto
+                        </button>
+                        <button class="btn btn-minecraft" data-target="elementos">
+                            <i class="fas fa-gamepad me-2"></i>Elementos del juego
+                        </button>
+                    </div>
+                    
+                    <div class="menu-content">
+                        <div id="pasos" class="content-section">
+                            <h3>Pasos para jugar:</h3>
+                            <ol>
+                                <li>Ingresa a la página de Roundy World</li>
+                                <li>Crea tu cuenta</li>
+                                <li>Rellena los datos que te solicitaremos</li>
+                                <li>Estas listo para empezar a jugar!!!</li>
+                            </ol>
+                        </div>
+                        
+                        <div id="objetivos" class="content-section">
+                            <h3>Objetivos del proyecto</h3>
+                            <ul>
+                                <li>Crear un espacio online seguro y divertido para niños y adolecentes</li>
+                                <li>Brindar herramientas que desarrollen la creatividad</li>
+                                <li>Fomentar la educación gamificada</li>
+                            </ul>
+                        </div>
+                        
+                        <div id="elementos" class="content-section">
+                            <h3>Elementos del juego</h3>
+                            <ol>
+                                <li>Personajes
+                                    <ul>
+                                        <li>Personita personalizable (Tú)</li>
+                                        <li>Mascotas</li>
+                                        <li>Otros usuarios</li>
+                                    </ul>
+                                </li>
+                                <li>Ubicaciones
+                                    <ul>
+                                        <li>Tu casa personalizable</li>
+                                        <li>Lugares de trabajo (minijuegos)</li>
+                                        <li>Universidad (aprendizaje por juegos)</li>
+                                        <li>Tiendas(coleccionables, mascotas, etc.)</li>
+                                        <li>Otros hogares de usuarios</li>
+                                    </ul>
+                                </li>
+                                <li>Educación
+                                    <ul>
+                                        <li>Minijuegos de preguntas</li>
+                                        <li>Distintas carreras(ingeniería, medicina, economía, etc)</li>
+                                        <li>Gamificación para mayor diversión</li>
+                                        <li>Distintos temas y cursos</li>
+                                    </ul>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <!-- Enhanced Download Button -->
+        <div class="text-center mt-5 mb-5">
+            <a href="imgs/Info_juego.pdf" download class="btn btn-download-custom">
+                <i class="fas fa-download me-2"></i>
+                <span>Descargar Información</span>
+                <i class="fas fa-file-pdf ms-2"></i>
+            </a>
+        </div>
 
-    
-<div class="tablas-container">
-  <section id="frameworks">
-    <h2>Frameworks para el juego web</h2>
-    <table border="1">
-      <caption>Listado de frameworks y motores útiles para desarrollar un juego web</caption>
-      <thead>
-        <tr>
-          <th scope="col">Framework / Motor</th>
-          <th scope="col">Tipo</th>
-          <th scope="col">Función principal</th>
-          <th scope="col">Comentario específico</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>React-Three-Fiber</td>
-          <td>3D / React</td>
-          <td>Renderizado 3D declarativo</td>
-          <td>Útil para mundos 3D; combina con Three.js</td>
-        </tr>
-        <tr>
-          <td>Three.js</td>
-          <td>3D</td>
-          <td>Gráficos y animaciones 3D</td>
-          <td>Compatible con React; para escenas 3D</td>
-        </tr>
-        <tr>
-          <td>PixiJS</td>
-          <td>2D</td>
-          <td>Renderizado sprites y animaciones</td>
-          <td>Ideal para personajes circulitos y minijuegos 2D</td>
-        </tr>
-        <tr>
-          <td>Phaser</td>
-          <td>2D</td>
-          <td>Framework completo para juegos 2D</td>
-          <td>Manejo de escenas, físicas y animaciones</td>
-        </tr>
-        <tr>
-          <td>React Game Kit</td>
-          <td>2D / React</td>
-          <td>Desarrollo de juegos 2D</td>
-          <td>Componentes de sprites, físicas y lógica nativos en React</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+        <h3>Bienvenido a Roundy World</h3>
+        <div class="imagenes-grid">
+            <img src="imgs/roundy-constructor.png" alt="Logo" class="gallery-image" data-bg="imgs/roundy-constructor.png">
+            <img src="imgs/roundy-pizza.png" alt="Logo" class="gallery-image" data-bg="imgs/roundy-pizza.png">
+            <img src="imgs/Roundy_worlds.png" alt="Logo" class="gallery-image" data-bg="imgs/Roundy_worlds.png">
+            <img src="imgs/roundy-student-circuit.png" alt="Logo" class="gallery-image" data-bg="imgs/roundy-student-circuit.png">
+            <img src="imgs/roundy-student.png" alt="Logo" class="gallery-image" data-bg="imgs/roundy-student.png">
+        </div>
 
+        <!-- Table Circles -->
+        <div class="tables-circles-container mt-5">
+            <h3 class="text-center mb-4">Información Técnica</h3>
+            <div class="row justify-content-center">
+                <div class="col-md-6 text-center">
+                    <div class="table-circle" data-table="frameworks">
+                        <div class="circle-content">
+                            <i class="fas fa-cogs"></i>
+                            <h4>Frameworks</h4>
+                            <p>Para el juego web</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 text-center">
+                    <div class="table-circle" data-table="tecnologias">
+                        <div class="circle-content">
+                            <i class="fas fa-microchip"></i>
+                            <h4>Tecnologías</h4>
+                            <p>Complementarias</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-  <section id="tecnologias">
-    <h2>Tecnologías complementarias para el juego web</h2>
-    <table border="1">
-      <caption>Listado de librerías y herramientas para funcionalidad online, animaciones y backend</caption>
-        <tr>
-          <th scope="col">Librería / Tecnología</th>
-          <th scope="col">Función</th>
-          <th scope="col">Uso específico para el juego</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Socket.io</td>
-          <td>Comunicación en tiempo real</td>
-          <td>Sincronizar movimiento de jugadores y chats online</td>
-        </tr>
-        <tr>
-          <td>Colyseus</td>
-          <td>Servidor MMO en tiempo real</td>
-          <td>Manejo de salas, estado de jugadores, multiplayer escalable</td>
-        </tr>
-        <tr>
-          <td>React-Pixi</td>
-          <td>Integración PixiJS + React</td>
-          <td>Renderizar personajes circulitos y accesorios dentro de React</td>
-        </tr>
-        <tr>
-          <td>Konva / React-Konva</td>
-          <td>Canvas 2D con React</td>
-          <td>Dibujar personajes y objetos interactivos estilo palitos y círculos</td>
-        </tr>
-        <tr>
-          <td>Anime.js / GSAP</td>
-          <td>Animaciones DOM o canvas</td>
-          <td>Animaciones de movimiento, efectos visuales y minijuegos</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-  </div>
+        <!-- Hidden Tables (will be shown in modal) -->
+        <div class="tablas-container d-none">
+            <section id="frameworks">
+                <h2>Frameworks para el juego web</h2>
+                <table border="1" class="table table-dark table-striped">
+                    <caption>Listado de frameworks y motores útiles para desarrollar un juego web</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Framework / Motor</th>
+                            <th scope="col">Tipo</th>
+                            <th scope="col">Función principal</th>
+                            <th scope="col">Comentario específico</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>React-Three-Fiber</td>
+                            <td>3D / React</td>
+                            <td>Renderizado 3D declarativo</td>
+                            <td>Útil para mundos 3D; combina con Three.js</td>
+                        </tr>
+                        <tr>
+                            <td>Three.js</td>
+                            <td>3D</td>
+                            <td>Gráficos y animaciones 3D</td>
+                            <td>Compatible con React; para escenas 3D</td>
+                        </tr>
+                        <tr>
+                            <td>PixiJS</td>
+                            <td>2D</td>
+                            <td>Renderizado sprites y animaciones</td>
+                            <td>Ideal para personajes circulitos y minijuegos 2D</td>
+                        </tr>
+                        <tr>
+                            <td>Phaser</td>
+                            <td>2D</td>
+                            <td>Framework completo para juegos 2D</td>
+                            <td>Manejo de escenas, físicas y animaciones</td>
+                        </tr>
+                        <tr>
+                            <td>React Game Kit</td>
+                            <td>2D / React</td>
+                            <td>Desarrollo de juegos 2D</td>
+                            <td>Componentes de sprites, físicas y lógica nativos en React</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+            
+            <section id="tecnologias">
+                <h2>Tecnologías complementarias para el juego web</h2>
+                <table border="1" class="table table-dark table-striped">
+                    <caption>Listado de librerías y herramientas para funcionalidad online, animaciones y backend</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Librería / Tecnología</th>
+                            <th scope="col">Función</th>
+                            <th scope="col">Uso específico para el juego</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Socket.io</td>
+                            <td>Comunicación en tiempo real</td>
+                            <td>Sincronizar movimiento de jugadores y chats online</td>
+                        </tr>
+                        <tr>
+                            <td>Colyseus</td>
+                            <td>Servidor MMO en tiempo real</td>
+                            <td>Manejo de salas, estado de jugadores, multiplayer escalable</td>
+                        </tr>
+                        <tr>
+                            <td>React-Pixi</td>
+                            <td>Integración PixiJS + React</td>
+                            <td>Renderizar personajes circulitos y accesorios dentro de React</td>
+                        </tr>
+                        <tr>
+                            <td>Konva / React-Konva</td>
+                            <td>Canvas 2D con React</td>
+                            <td>Dibujar personajes y objetos interactivos estilo palitos y círculos</td>
+                        </tr>
+                        <tr>
+                            <td>Anime.js / GSAP</td>
+                            <td>Animaciones DOM o canvas</td>
+                            <td>Animaciones de movimiento, efectos visuales y minijuegos</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </div>
 
+        <h3>Información del creador:</h3>
+        <nav class="creator-links">
+            <a href="https://www.linkedin.com/in/juan-david-contreras-72a23b369/" target="_blank" id="linkedin" class="social-link">
+                <i class="fab fa-linkedin"></i>
+                
+            </a>
+            <a href="https://github.com/Juanda-C7" target="_blank" class="social-link">
+                <i class="fab fa-github"></i>
+                
+            </a>
+            <a href="mailto:juandacg@ufm.edu" class="social-link">
+                <i class="fas fa-envelope"></i>
+                
+            </a>
+        </nav>
+    </div>
 
-    <h3>Información del creador:</h3>
-    <nav>
-      <a href="https://www.linkedin.com/in/juan-david-contreras-72a23b369/" target = "_blank" id="linkedin">
-        <img src="imgs/logo linkedin.png" alt="Linkedin" width="40" height="40">
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-      <a href="https://github.com/Juanda-C7" target = "_blank"> 
-         <img src="imgs/github-mark-white.png" alt="Github" width="40" height="40">
-      </a>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-      <a href="mailto:juandacg@ufm.edu">
-        <img src="imgs/logo-gmail.webp" alt="Gmail" width="40" height="40">
-    </nav>
+    <!-- Table Modal -->
+    <div class="modal fade" id="tableModal" tabindex="-1" aria-labelledby="tableModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-bottom border-warning">
+                    <h5 class="modal-title text-warning" id="tableModalLabel">Información Técnica</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="tableModalBody">
+                    <!-- Table content will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
