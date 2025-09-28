@@ -1,0 +1,481 @@
+/* style.css */
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Coiny&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bubblegum+Sans&display=swap');
+
+/* ============================ BASE: MÓVILES PRIMERO ============================ */
+body {
+    font-family: 'Bubblegum Sans', cursive;
+    background-color: #1b1b1b;
+    color: #f0f0f0;
+    margin: 1rem;
+    padding-top: 6rem;
+    line-height: 1.6;
+    font-size: 1.2rem;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Background Image Container */
+.background-image-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.background-image-container.show {
+    opacity: 0.3;
+}
+
+h1 {
+    font-size: 6vw;
+    font-family: 'Luckiest Guy', cursive;
+    color: #FF8E00;
+    margin: 0;
+    padding: 0.5em 0;
+    background: linear-gradient(135deg, #2b2b2b, #3d3d3d);
+    text-align: center;
+    text-shadow: 0.1em 0.1em #ffd500;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    border-bottom: 0.05em solid #ffd500;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+h2, h3 {
+    font-family: 'Coiny', cursive;
+    color: #FF8E00;
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    text-shadow: 0.1em 0.1em #000;
+    font-size: 1.8rem;
+}
+
+ol, ul {
+    margin-left: 2.5rem;
+    margin-bottom: 1.2rem;
+}
+
+li {
+    margin-bottom: 0.5rem;
+}
+
+/* Interactive Menu Styles */
+.interactive-menu {
+    background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(255, 142, 0, 0.2);
+    border: 2px solid #FF8E00;
+}
+
+.btn-minecraft {
+    background: linear-gradient(145deg, #8B4513, #A0522D);
+    border: 3px solid #654321;
+    color: #fff;
+    font-family: 'Coiny', cursive;
+    font-weight: bold;
+    font-size: 1.1rem;
+    padding: 15px 25px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.2),
+                0 4px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-minecraft:hover {
+    background: linear-gradient(145deg, #A0522D, #CD853F);
+    transform: translateY(-2px);
+    box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.3),
+                0 6px 12px rgba(0, 0, 0, 0.4);
+    color: #fff;
+}
+
+.btn-minecraft:active {
+    transform: translateY(0);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.btn-minecraft.active {
+    background: linear-gradient(145deg, #FF8E00, #FFB84D);
+    border-color: #ffd500;
+    color: #000;
+    box-shadow: inset 0 0 15px rgba(255, 213, 0, 0.5),
+                0 4px 8px rgba(255, 142, 0, 0.3);
+}
+
+.content-section {
+    background: rgba(42, 42, 42, 0.8);
+    padding: 2rem;
+    border-radius: 10px;
+    border-left: 4px solid #FF8E00;
+    margin-top: 1rem;
+    display: none;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.content-section.active {
+    display: block;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Enhanced Download Button */
+.btn-download-custom {
+    background: linear-gradient(135deg, #FF8E00, #FF6B35);
+    border: none;
+    color: white;
+    font-size: 1.3rem;
+    font-weight: bold;
+    padding: 15px 30px;
+    border-radius: 50px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 8px 25px rgba(255, 142, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Coiny', cursive;
+}
+
+.btn-download-custom:hover {
+    background: linear-gradient(135deg, #FF6B35, #FF8E00);
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 12px 35px rgba(255, 142, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.btn-download-custom:active {
+    transform: translateY(-1px);
+}
+
+.btn-download-custom::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn-download-custom:hover::before {
+    left: 100%;
+}
+
+/* Table Circles */
+.tables-circles-container {
+    padding: 3rem 0;
+}
+
+.table-circle {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF8E00, #ffd500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 2rem;
+    cursor: pointer;
+    transition: all 0.4s ease;
+    box-shadow: 0 8px 32px rgba(255, 142, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.table-circle:hover {
+    transform: scale(1.05) rotate(5deg);
+    box-shadow: 0 12px 40px rgba(255, 142, 0, 0.5);
+}
+
+.table-circle:active {
+    transform: scale(0.95) rotate(-5deg);
+}
+
+.circle-content {
+    text-align: center;
+    color: #1b1b1b;
+    z-index: 2;
+    position: relative;
+}
+
+.circle-content i {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.circle-content h4 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.circle-content p {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.table-circle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.6s;
+}
+
+.table-circle:hover::before {
+    left: 100%;
+}
+
+/* Table Styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+}
+
+th, td {
+    border: 0.2rem solid #00ffff;
+    padding: 0.5em;
+    text-align: left;
+}
+
+th {
+    background-color: #333333;
+    color: #ffd500;
+}
+
+td {
+    background-color: #222222;
+}
+
+caption {
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: #ffd500;
+}
+
+/* Gallery Images */
+img {
+    border: 0.3rem solid #FF8E00;
+    margin: 0.5rem 0;
+    max-width: 100%;
+    height: auto;
+}
+
+.gallery-image {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(255, 142, 0, 0.3);
+}
+
+.gallery-image:hover {
+    transform: scale(1.05) rotate(2deg);
+    box-shadow: 0 8px 25px rgba(255, 142, 0, 0.5);
+    border-color: #ffd500;
+}
+
+.imagenes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    justify-items: center;
+    margin-top: 1rem;
+    padding: 1rem;
+}
+
+/* Social Links Container */
+.creator-links {
+    display: flex;             
+    flex-direction: row;      
+    gap: 1.5rem;               
+    justify-content: center;   
+    align-items: center;       
+    margin-top: 2rem;
+}
+
+/* Cada enlace */
+.social-link {
+    display: flex;
+    flex-direction: row;       /* Icono y texto en línea */
+    align-items: center;
+    gap: 0.5rem;               /* Espacio entre icono y texto */
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #2a2a2a, #3a3a3a);
+    border: 2px solid #FF8E00;
+    border-radius: 25px;
+    color: #f0f0f0;
+    text-decoration: none;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.social-link:hover {
+    background: linear-gradient(135deg, #FF8E00, #ffd500);
+    color: #1b1b1b;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 142, 0, 0.4);
+}
+
+/* Iconos dentro del enlace */
+.social-link i {
+    font-size: 1.5rem;
+}
+
+
+/* Scroll Link */
+.scroll-link {
+    color: #FF8E00;
+    text-decoration: none;
+    font-weight: bold;
+    padding: 8px 15px;
+    border: 2px solid #FF8E00;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    display: inline-block;
+    margin-top: 1rem;
+}
+
+.scroll-link:hover {
+    background: #FF8E00;
+    color: #1b1b1b;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 142, 0, 0.3);
+}
+
+/* Modal Styles */
+.modal-content {
+    background: #1b1b1b !important;
+    border: 2px solid #FF8E00;
+}
+
+.modal-header {
+    border-bottom-color: #FF8E00 !important;
+}
+
+.table-dark {
+    --bs-table-bg: #222222;
+    --bs-table-border-color: #00ffff;
+}
+
+/* ============================ MEDIA QUERIES ============================ */
+/* iPhone 14 Pro Max (~430px ancho) */
+@media screen and (min-width: 430px) {
+    h1 {
+        font-size: 5vw;
+    }
+    h2, h3 {
+        font-size: 2rem;
+    }
+    
+    .creator-links {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .table-circle {
+        width: 200px;
+        height: 200px;
+    }
+}
+
+/* iPad Pro (~1024px ancho) */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+    body {
+        font-size: 1.3rem;
+    }
+    h1 {
+        font-size: 4vw;
+    }
+    h2, h3 {
+        font-size: 2.5rem;
+    }
+    .imagenes-grid {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    
+    .creator-links {
+        flex-direction: row;
+    }
+}
+
+/* Desktop (>1024px) */
+@media screen and (min-width: 1025px) {
+    body {
+        font-size: 1.4rem;
+    }
+    h1 {
+        font-size: 3vw;
+    }
+    h2, h3 {
+        font-size: 2.2rem;
+    }
+    .imagenes-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
+
+/* Animation classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-up {
+    animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
