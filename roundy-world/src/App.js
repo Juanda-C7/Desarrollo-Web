@@ -2,33 +2,71 @@ import React, { useState, useEffect, useRef } from "react";
 import Phaser from "phaser";
 import p5 from "p5";
 
-/*
-  Responsive upgrade notes:
-  - Añadí un "stage" (800x600) que se escala uniformemente para escritorio/tablet/móvil.
-  - Phaser y p5 siguen usando la zona lógica 800x600 (por tanto las colisiones físicas NO cambian).
-  - Visualmente todo se escala con CSS transform: scale(s). La posición del SVG se calcula en coordenadas lógicas (0..800,0..600) y al ser hijo del stage queda alineado con la física.
-  - Un listener de resize mantiene la escala adecuada; el juego queda centrado dentro del wrapper.
-  - No cambié la lógica de colisiones ni de física: la física se sigue ejecutando en el tamaño lógico 800x600, por eso nada importante "se mueve de lugar" en cuanto a colisiones.
-*/
-
 export default function App() {
-  const [step, setStep] = useState("login"); // login | customize | world
+  const [step, setStep] = useState("login");
   const [username, setUsername] = useState("");
-  const [color, setColor] = useState(0xff0000); // color (hex number para Phaser, también lo usamos para SVG)
+  const [color, setColor] = useState(null);
   const [showSandwichMinigame, setShowSandwichMinigame] = useState(false);
   const [showPressAHint, setShowPressAHint] = useState(false);
-
   const [sandwich, setSandwich] = useState([]);
-  const [sandwichDone, setSandwichDone] = useState(false);
-  const [money, setMoney] = useState(0);
+  const [sandwichDone, setSandwichDone] = useState(null);
+  const [money, setMoney] = useState(null);
 
-  // refs
   const phaserRef = useRef(null);
   const p5Ref = useRef(null);
   const svgRef = useRef(null);
   const rafRef = useRef(null);
   const containerRef = useRef(null);
   const stageRef = useRef(null);
+
+  // --------------------------- 
+  // REDIS: Recuperar sesión al hacer login
+  // --------------------------- 
+  const handleLogin = async () => {
+    if (!username) return;
+    try {
+      const res = await fetch(`http://localhost:4000/session/${username}`);
+      const data = await res.json();
+      if (data && Object.keys(data).length > 0) {
+        // Usuario existente → restaurar sesión
+        setColor(data.color ?? 0xff0000);
+        setMoney(data.money ?? 0);
+        setSandwichDone(data.sandwichDone ?? false);
+        setStep("world"); // ir directo al mundo
+      } else {
+        // Usuario nuevo → inicializamos valores y vamos a personalización
+        setColor(0xff0000);
+        setMoney(0);
+        setSandwichDone(false);
+        setStep("customize");
+      }
+    } catch (err) {
+      console.error("❌ No se pudo recuperar sesión de Redis", err);
+      setColor(0xff0000);
+      setMoney(0);
+      setSandwichDone(false);
+      setStep("customize");
+    }
+  };
+
+  // --------------------------- 
+  // REDIS: Guardar sesión cuando cambien los datos
+  // --------------------------- 
+  useEffect(() => {
+    if (
+      username &&
+      color !== null &&
+      money !== null &&
+      sandwichDone !== null
+    ) {
+      const sessionData = { color, money, sandwichDone };
+      fetch("http://localhost:4000/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, data: sessionData }),
+      }).catch(() => console.log("❌ No se pudo guardar sesión en Redis"));
+    }
+  }, [username, color, money, sandwichDone]);
 
   const ingredients = [
     { name: "🥬 Lechuga", color: "#4caf50" },
@@ -51,176 +89,180 @@ export default function App() {
 
   // ---------- INITIALIZE p5 + Phaser when entering world ----------
   useEffect(() => {
-    if (step === "world" && !phaserRef.current) {
-      // --- p5 sketch ---
-      const sketch = (s) => {
-        // logical stage size (Phaser physics use the same logical size)
-        const W = 800,
-          H = 600;
-
-        s.setup = () => {
-          // we will create canvas inside an element within the stage (so it gets scaled)
-          s.createCanvas(W, H).parent("p5-container");
-        };
-
-        s.draw = () => {
-          s.push();
-          s.noStroke();
-          s.background("#e9f3fb");
-
-          // pared
-          s.fill("#f2e9dc");
-          s.rect(0, 0, W, 220);
-
-          // ventana
-          s.fill("#9fd3ff");
-          s.rect(520, 30, 180, 110, 8);
-          s.fill("#fff7");
-          s.rect(540, 50, 140, 70, 6);
-
-          // suelo y tiles
-          s.translate(0, 220);
-          s.fill("#f8f2e6");
-          s.rect(0, 0, W, H - 220);
-          s.stroke("#e0d3c3");
-          const tile = 48;
-          for (let y = 0; y < H - 220; y += tile) {
-            for (let x = 0; x < W; x += tile) {
-              s.noFill();
-              s.rect(x, y, tile, tile);
+      if (step === "world" && !phaserRef.current) {
+        // --- p5 sketch ---
+        const sketch = (s) => {
+          // logical stage size (Phaser physics use the same logical size)
+          const W = 800,
+            H = 600;
+  
+          s.setup = () => {
+            // we will create canvas inside an element within the stage (so it gets scaled)
+            s.createCanvas(W, H).parent("p5-container");
+          };
+  
+          s.draw = () => {
+            s.push();
+            s.noStroke();
+            s.background("#e9f3fb");
+  
+            // pared
+            s.fill("#f2e9dc");
+            s.rect(0, 0, W, 220);
+  
+            // ventana
+            s.fill("#9fd3ff");
+            s.rect(520, 30, 180, 110, 8);
+            s.fill("#fff7");
+            s.rect(540, 50, 140, 70, 6);
+  
+            // suelo y tiles
+            s.translate(0, 220);
+            s.fill("#f8f2e6");
+            s.rect(0, 0, W, H - 220);
+            s.stroke("#e0d3c3");
+            const tile = 48;
+            for (let y = 0; y < H - 220; y += tile) {
+              for (let x = 0; x < W; x += tile) {
+                s.noFill();
+                s.rect(x, y, tile, tile);
+              }
             }
-          }
-          s.pop();
-
-          // mesa
-          s.push();
-          s.noStroke();
-          s.fill("#00000022");
-          s.ellipse(400, 330, 160, 30);
-          s.fill("#cd853f");
-          s.rectMode(s.CENTER);
-          s.rect(400, 300, 220, 80, 8);
-          s.fill("#8b5a2b");
-          s.rect(330, 350, 18, 60, 4);
-          s.rect(470, 350, 18, 60, 4);
-          s.pop();
-
-          // estufa
-          s.push();
-          s.fill("#c7c7c7");
-          s.rect(90, 280, 140, 120, 6);
-          s.fill("#333");
-          s.rect(90, 250, 100, 20, 4);
-          s.fill("#8b0000");
-          s.rect(90, 260, 40, 20, 4);
-          const t = s.millis() / 800;
-          s.noFill();
-          s.stroke("#ffffff88");
-          s.strokeWeight(2);
-          for (let i = 0; i < 3; i++) {
-            const yy = 235 - ((t + i * 0.6) % 1) * 30;
-            s.ellipse(90, yy, 12, 8);
-          }
-          s.pop();
-
-          // estantes
-          s.push();
-          s.fill("#b3c8a6");
-          s.rect(700, 160, 140, 60, 6);
-          s.fill("#8b5a2b");
-          s.rect(700, 200, 30, 30, 6);
-          s.pop();
+            s.pop();
+  
+            // mesa
+            s.push();
+            s.noStroke();
+            s.fill("#00000022");
+            s.ellipse(400, 330, 160, 30);
+            s.fill("#cd853f");
+            s.rectMode(s.CENTER);
+            s.rect(400, 300, 220, 80, 8);
+            s.fill("#8b5a2b");
+            s.rect(330, 350, 18, 60, 4);
+            s.rect(470, 350, 18, 60, 4);
+            s.pop();
+  
+            // estufa
+            s.push();
+            s.fill("#c7c7c7");
+            s.rect(90, 280, 140, 120, 6);
+            s.fill("#333");
+            s.rect(90, 250, 100, 20, 4);
+            s.fill("#8b0000");
+            s.rect(90, 260, 40, 20, 4);
+            const t = s.millis() / 800;
+            s.noFill();
+            s.stroke("#ffffff88");
+            s.strokeWeight(2);
+            for (let i = 0; i < 3; i++) {
+              const yy = 235 - ((t + i * 0.6) % 1) * 30;
+              s.ellipse(90, yy, 12, 8);
+            }
+            s.pop();
+  
+            // estantes
+            s.push();
+            s.fill("#b3c8a6");
+            s.rect(700, 160, 140, 60, 6);
+            s.fill("#8b5a2b");
+            s.rect(700, 200, 30, 30, 6);
+            s.pop();
+          };
         };
-      };
-
-      // mount p5 inside stage's p5-container
-      p5Ref.current = new p5(sketch, document.getElementById("p5-container"));
-
-      // --- Phaser ---
-      const config = {
-        type: Phaser.AUTO,
-        width: 800,
-        height: 600,
-        parent: "game-stage", // ahora apuntamos al elemento stage
-        transparent: true,
-        physics: {
-          default: "arcade",
-          arcade: { gravity: { y: 0 }, debug: false },
-        },
-        scene: { preload, create, update },
-      };
-
-      let player;
-      let cursors;
-      let table;
-      let keyA;
-
-      function preload() {}
-
-      function create() {
-        const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
-        this.physics.add.existing(floor, true);
-
-        const walls = [
-          this.add.rectangle(400, 10, 800, 20, 0x000000, 0),
-          this.add.rectangle(400, 590, 800, 20, 0x000000, 0),
-          this.add.rectangle(10, 300, 20, 600, 0x000000, 0),
-          this.add.rectangle(790, 300, 20, 600, 0x000000, 0),
-        ];
-        walls.forEach((w) => this.physics.add.existing(w, true));
-
-        table = this.add.rectangle(400, 300, 220, 80, 0x000000, 0);
-        this.physics.add.existing(table, true);
-
-        const chair1 = this.add.rectangle(330, 350, 30, 30, 0x000000, 0);
-        const chair2 = this.add.rectangle(470, 350, 30, 30, 0x000000, 0);
-        this.physics.add.existing(chair1, true);
-        this.physics.add.existing(chair2, true);
-
-        const stove = this.add.rectangle(90, 280, 140, 120, 0x000000, 0);
-        this.physics.add.existing(stove, true);
-
-        player = this.add.circle(50, 300, 18, 0xffffff, 0);
-        this.physics.add.existing(player);
-        player.body.setCollideWorldBounds(true);
-        player.body.setCircle(18);
-        player.body.setOffset(-18, -18);
-
-        const obstacles = [...walls, table, chair1, chair2, stove];
-        obstacles.forEach((obs) => {
-          this.physics.add.collider(player, obs);
-        });
-
-        const exclamation = this.add
-          .text(table.x, table.y - 60, "!", {
-            font: "36px Arial",
-            fill: "#ff3333",
-            fontStyle: "bold",
-          })
-          .setOrigin(0.5, 0.5);
-        window.tableExclamation = exclamation;
-
-        cursors = this.input.keyboard.createCursorKeys();
-        keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-
-        window.phaserScene = this;
-        window.phaserPlayer = player;
-
-        this.cameras.main.centerOn(400, 300);
-      }
+  
+        // mount p5 inside stage's p5-container
+        p5Ref.current = new p5(sketch, document.getElementById("p5-container"));
+  
+        // --- Phaser ---
+        const config = {
+          type: Phaser.AUTO,
+          width: 800,
+          height: 600,
+          parent: "game-stage", // ahora apuntamos al elemento stage
+          transparent: true,
+          physics: {
+            default: "arcade",
+            arcade: { gravity: { y: 0 }, debug: false },
+          },
+          scene: { preload, create, update },
+        };
+  
+        let player;
+        let cursors;
+        let table;
+        let keyA;
+  
+        function preload() {}
+  
+        function create() {
+          const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
+          this.physics.add.existing(floor, true);
+  
+          const walls = [
+            this.add.rectangle(400, 10, 800, 20, 0x000000, 0),
+            this.add.rectangle(400, 590, 800, 20, 0x000000, 0),
+            this.add.rectangle(10, 300, 20, 600, 0x000000, 0),
+            this.add.rectangle(790, 300, 20, 600, 0x000000, 0),
+          ];
+          walls.forEach((w) => this.physics.add.existing(w, true));
+  
+          table = this.add.rectangle(400, 300, 220, 80, 0x000000, 0);
+          this.physics.add.existing(table, true);
+  
+          const chair1 = this.add.rectangle(330, 350, 30, 30, 0x000000, 0);
+          const chair2 = this.add.rectangle(470, 350, 30, 30, 0x000000, 0);
+          this.physics.add.existing(chair1, true);
+          this.physics.add.existing(chair2, true);
+  
+          const stove = this.add.rectangle(90, 280, 140, 120, 0x000000, 0);
+          this.physics.add.existing(stove, true);
+  
+          player = this.add.circle(50, 300, 18, 0xffffff, 0);
+          this.physics.add.existing(player);
+          player.body.setCollideWorldBounds(true);
+          player.body.setCircle(18);
+          player.body.setOffset(-18, -18);
+  
+          const obstacles = [...walls, table, chair1, chair2, stove];
+          obstacles.forEach((obs) => {
+            this.physics.add.collider(player, obs);
+          });
+  
+          const exclamation = this.add
+            .text(table.x, table.y - 60, "!", {
+              font: "36px Arial",
+              fill: "#ff3333",
+              fontStyle: "bold",
+            })
+            .setOrigin(0.5, 0.5);
+          window.tableExclamation = exclamation;
+  
+          cursors = this.input.keyboard.createCursorKeys();
+          keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+  
+          window.phaserScene = this;
+          window.phaserPlayer = player;
+  
+          this.cameras.main.centerOn(400, 300);
+        }
 
       function update() {
         if (!player || !cursors) return;
+
         const speed = 160;
         player.body.setVelocity(0);
-
         if (cursors.left.isDown) player.body.setVelocityX(-speed);
         if (cursors.right.isDown) player.body.setVelocityX(speed);
         if (cursors.up.isDown) player.body.setVelocityY(-speed);
         if (cursors.down.isDown) player.body.setVelocityY(speed);
 
-        const dist = Phaser.Math.Distance.Between(player.x, player.y, table.x, table.y);
-
+        const dist = Phaser.Math.Distance.Between(
+          player.x,
+          player.y,
+          table.x,
+          table.y
+        );
         if (dist < 70) {
           window.nearTable = true;
           if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
@@ -231,12 +273,13 @@ export default function App() {
           window.nearTable = false;
         }
 
-        if (window.tableExclamation) window.tableExclamation.setVisible(!sandwichDone);
+        if (window.tableExclamation)
+          window.tableExclamation.setVisible(!sandwichDone);
       }
 
       phaserRef.current = new Phaser.Game(config);
 
-      // RAF loop: sincroniza SVG con las coordenadas lógicas del jugador
+      // RAF loop
       const updateSvg = () => {
         try {
           const scene = window.phaserScene;
@@ -246,7 +289,6 @@ export default function App() {
           if (scene && playerObj && svgEl && stageEl) {
             const x = playerObj.x;
             const y = playerObj.y;
-            // colocamos el svg en coordenadas lógicas (stage es 800x600)
             svgEl.style.left = `${x}px`;
             svgEl.style.top = `${y}px`;
 
@@ -254,14 +296,11 @@ export default function App() {
             const ev = new CustomEvent("nearTableUpdate", { detail: { near } });
             window.dispatchEvent(ev);
           }
-        } catch (err) {
-          // ignore
-        }
+        } catch (err) {}
         rafRef.current = requestAnimationFrame(updateSvg);
       };
       rafRef.current = requestAnimationFrame(updateSvg);
 
-      // Eventos hacia React
       const openListener = () => {
         setShowSandwichMinigame(true);
         setShowPressAHint(false);
@@ -278,7 +317,6 @@ export default function App() {
         window.removeEventListener("nearTableUpdate", nearListener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
-
       phaserRef.currentCleanup = cleanup;
     }
 
@@ -295,41 +333,36 @@ export default function App() {
         } catch (e) {}
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, color, sandwichDone]);
 
-  // --------- Scale / responsive handling (keeps logical 800x600 intact) ---------
+  // Scale / responsive handling
   useEffect(() => {
     const updateScale = () => {
       const wrapper = containerRef.current;
       const stage = stageRef.current;
       if (!wrapper || !stage) return;
 
-      // available area inside wrapper (we reserve vertical space for header/hud)
       const maxW = Math.min(window.innerWidth * 0.95, 1000);
       const maxH = Math.min(window.innerHeight * 0.72, 800);
+      const scale = Math.max(0.45, Math.min(maxW / 800, maxH / 600));
 
-      // compute scale for logical 800x600
-      const scale = Math.max(0.45, Math.min(maxW / 800, maxH / 600)); // clamp minimum scale so UI remains usable
-
-      // set wrapper CSS (visual container) and apply uniform scale on stage
       wrapper.style.width = `${Math.round(Math.min(maxW, 800 * scale))}px`;
       wrapper.style.height = `${Math.round(Math.min(maxH, 600 * scale))}px`;
 
-      // stage keeps logical width/height but is scaled
       stage.style.width = `800px`;
       stage.style.height = `600px`;
       stage.style.transformOrigin = "0 0";
       stage.style.transform = `scale(${scale})`;
-
-      // store scale for debugging if needed
       stage.dataset.scale = String(scale);
 
-      // center stage inside wrapper (the scaled stage has visual size 800*scale x 600*scale)
       const visualW = 800 * scale;
       const visualH = 600 * scale;
-      stage.style.marginLeft = `${Math.round((wrapper.clientWidth - visualW) / 2 / scale)}px`;
-      stage.style.marginTop = `${Math.round((wrapper.clientHeight - visualH) / 2 / scale)}px`;
+      stage.style.marginLeft = `${Math.round(
+        (wrapper.clientWidth - visualW) / 2 / scale
+      )}px`;
+      stage.style.marginTop = `${Math.round(
+        (wrapper.clientHeight - visualH) / 2 / scale
+      )}px`;
     };
 
     updateScale();
@@ -337,27 +370,27 @@ export default function App() {
     return () => window.removeEventListener("resize", updateScale);
   }, []);
 
-  // Al terminar sandwich
   function finishSandwich() {
     setSandwichDone(true);
     setShowSandwichMinigame(false);
     setMoney((prev) => prev + 5);
   }
 
-  // Drag & Drop (React DOM)
   function onDragStart(e, ing) {
     e.dataTransfer.setData("ingredient", JSON.stringify(ing));
   }
+
   function onDrop(e) {
     e.preventDefault();
     const ing = JSON.parse(e.dataTransfer.getData("ingredient"));
     setSandwich((prev) => [...prev, ing]);
   }
+
   function allowDrop(e) {
     e.preventDefault();
   }
 
-  // ---------- UI render (login/customize/world) ----------
+  // ---------- UI render ----------
   if (step === "login") {
     return (
       <div
@@ -385,7 +418,7 @@ export default function App() {
           }}
         />
         <button
-          onClick={() => setStep("customize")}
+          onClick={handleLogin}
           disabled={!username}
           style={{
             padding: "10px 20px",
@@ -414,7 +447,6 @@ export default function App() {
         }}
       >
         <h1>Personaliza tu Roundy</h1>
-
         <div
           style={{
             width: 140,
@@ -429,14 +461,33 @@ export default function App() {
           }}
         >
           <svg width="120" height="120" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="40" fill={numToCssHex(color)} stroke="#000" strokeWidth="3" />
+            <circle
+              cx="60"
+              cy="60"
+              r="40"
+              fill={numToCssHex(color)}
+              stroke="#000"
+              strokeWidth="3"
+            />
             <circle cx="48" cy="54" r="5" fill="#000" />
             <circle cx="72" cy="54" r="5" fill="#000" />
-            <path d="M48 70 Q60 80 72 70" stroke="#000" strokeWidth="3" fill="none" strokeLinecap="round" />
+            <path
+              d="M48 70 Q60 80 72 70"
+              stroke="#000"
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+            />
           </svg>
         </div>
-
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            flexWrap: "wrap",
+            justifyContent: "center",
+          }}
+        >
           {Object.entries(colors).map(([name, hex]) => (
             <div
               key={name}
@@ -453,7 +504,6 @@ export default function App() {
             />
           ))}
         </div>
-
         <button
           onClick={() => setStep("world")}
           style={{
@@ -470,7 +520,6 @@ export default function App() {
     );
   }
 
-  // Mundo (responsive)
   return (
     <div
       style={{
@@ -483,14 +532,13 @@ export default function App() {
         paddingTop: 12,
       }}
     >
-      <h2 style={{ textAlign: "center" }}>Hola {username}! Muévete con las flechas.</h2>
-
-      {/* wrapper responsivo */}
+      <h2 style={{ textAlign: "center" }}>
+        Hola {username}! Muévete con las flechas.
+      </h2>
       <div
         ref={containerRef}
         id="phaser-wrapper"
         style={{
-          // width/height se controlan desde JS para calcular escala
           position: "relative",
           margin: "12px auto",
           boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
@@ -502,7 +550,6 @@ export default function App() {
           justifyContent: "center",
         }}
       >
-        {/* stage: mantiene las coordenadas lógicas 800x600 y se escala uniformemente */}
         <div
           ref={stageRef}
           id="game-stage"
@@ -512,10 +559,15 @@ export default function App() {
             position: "relative",
           }}
         >
-          {/* p5 and phaser will be inside this stage so they get scaled together */}
-          <div id="p5-container" style={{ position: "absolute", left: 0, top: 0, zIndex: 0 }} />
-
-          {/* SVG player (z-index 2) - se posiciona en coordenadas lógicas (0..800,0..600) */}
+          <div
+            id="p5-container"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              zIndex: 0,
+            }}
+          />
           <div
             ref={svgRef}
             id="svg-player"
@@ -532,32 +584,89 @@ export default function App() {
           >
             <svg viewBox="0 0 100 100" width="64" height="64">
               <defs>
-                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.18" />
+                <filter
+                  id="shadow"
+                  x="-50%"
+                  y="-50%"
+                  width="200%"
+                  height="200%"
+                >
+                  <feDropShadow
+                    dx="0"
+                    dy="2"
+                    stdDeviation="2"
+                    floodColor="#000"
+                    floodOpacity="0.18"
+                  />
                 </filter>
               </defs>
               <g id="body">
-                <circle cx="50" cy="44" r="24" fill={numToCssHex(color)} stroke="#111" strokeWidth="1.8" filter="url(#shadow)" />
+                <circle
+                  cx="50"
+                  cy="44"
+                  r="24"
+                  fill={numToCssHex(color)}
+                  stroke="#111"
+                  strokeWidth="1.8"
+                  filter="url(#shadow)"
+                />
                 <g id="eyes" transform="translate(0,0)">
                   <circle cx="42" cy="40" r="3.7" fill="#000" />
                   <circle cx="58" cy="40" r="3.7" fill="#000" />
                 </g>
-                <path d="M40 52 Q50 60 60 52" stroke="#111" strokeWidth="2" fill="none" strokeLinecap="round" />
+                <path
+                  d="M40 52 Q50 60 60 52"
+                  stroke="#111"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                />
               </g>
               <g id="arms" transform="translate(0,0)">
-                <line x1="22" y1="50" x2="6" y2="66" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-                <line x1="78" y1="50" x2="94" y2="66" stroke="#111" strokeWidth="4" strokeLinecap="round" />
+                <line
+                  x1="22"
+                  y1="50"
+                  x2="6"
+                  y2="66"
+                  stroke="#111"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+                <line
+                  x1="78"
+                  y1="50"
+                  x2="94"
+                  y2="66"
+                  stroke="#111"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
               </g>
               <g id="legs">
-                <line x1="42" y1="68" x2="36" y2="86" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-                <line x1="58" y1="68" x2="64" y2="86" stroke="#111" strokeWidth="4" strokeLinecap="round" />
+                <line
+                  x1="42"
+                  y1="68"
+                  x2="36"
+                  y2="86"
+                  stroke="#111"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+                <line
+                  x1="58"
+                  y1="68"
+                  x2="64"
+                  y2="86"
+                  stroke="#111"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
               </g>
             </svg>
           </div>
         </div>
       </div>
 
-      {/* HUD */}
       <div
         style={{
           position: "absolute",
@@ -574,7 +683,6 @@ export default function App() {
         💰 {money}
       </div>
 
-      {/* Hint */}
       {showPressAHint && !showSandwichMinigame && !sandwichDone && (
         <div
           style={{
@@ -592,7 +700,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Sandwich Done */}
       {sandwichDone && (
         <div
           style={{
@@ -610,7 +717,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Minijuego Sandwich (React) */}
       {showSandwichMinigame && (
         <div
           style={{
@@ -627,7 +733,6 @@ export default function App() {
           }}
         >
           <h3 style={{ marginTop: 0 }}>🥪 Arma tu Sandwich</h3>
-
           <div
             onDrop={onDrop}
             onDragOver={allowDrop}
@@ -642,14 +747,45 @@ export default function App() {
               background: "#fbfbfb",
             }}
           >
-            <div style={{ width: 140, height: 20, background: "#deb887", borderRadius: 6, margin: "6px 0" }} />
+            <div
+              style={{
+                width: 140,
+                height: 20,
+                background: "#deb887",
+                borderRadius: 6,
+                margin: "6px 0",
+              }}
+            />
             {sandwich.map((ing, i) => (
-              <div key={i} style={{ width: 140, height: 18, background: ing.color, borderRadius: 5, margin: "5px 0" }} />
+              <div
+                key={i}
+                style={{
+                  width: 140,
+                  height: 18,
+                  background: ing.color,
+                  borderRadius: 5,
+                  margin: "5px 0",
+                }}
+              />
             ))}
-            <div style={{ width: 140, height: 20, background: "#deb887", borderRadius: 6, margin: "6px 0" }} />
+            <div
+              style={{
+                width: 140,
+                height: 20,
+                background: "#deb887",
+                borderRadius: 6,
+                margin: "6px 0",
+              }}
+            />
           </div>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              marginTop: 12,
+              flexWrap: "wrap",
+            }}
+          >
             {ingredients.map((ing) => (
               <div
                 key={ing.name}
@@ -672,16 +808,36 @@ export default function App() {
               </div>
             ))}
           </div>
-
-          <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 12 }}>
-            <button onClick={finishSandwich} style={{ padding: "8px 12px", background: "#4caf50", color: "#fff", border: "none", borderRadius: 8 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 10,
+              marginTop: 12,
+            }}
+          >
+            <button
+              onClick={finishSandwich}
+              style={{
+                padding: "8px 12px",
+                background: "#4caf50",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+              }}
+            >
               Terminar Sandwich
             </button>
             <button
               onClick={() => {
                 setShowSandwichMinigame(false);
               }}
-              style={{ padding: "8px 12px", background: "#ccc", border: "none", borderRadius: 8 }}
+              style={{
+                padding: "8px 12px",
+                background: "#ccc",
+                border: "none",
+                borderRadius: 8,
+              }}
             >
               Cancelar
             </button>
