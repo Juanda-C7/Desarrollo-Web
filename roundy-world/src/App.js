@@ -2,6 +2,32 @@ import React, { useState, useEffect, useRef } from "react";
 import Phaser from "phaser";
 import p5 from "p5";
 
+/*
+  CÓMO SE TRABAJÓ REDIS PARA GUARDAR SESIÓN
+
+  1. ESTRUCTURA DE DATOS
+  En Redis se guarda cada usuario con una clave tipo "session:username" que contiene 
+  un JSON con sus datos (color del personaje, dinero, si completó el minijuego).
+
+  2. FLUJO DE CARGA
+  Cuando el usuario hace login, el cliente React hace una petición GET al servidor 
+  Express, que consulta Redis. Si encuentra datos, los devuelve y React los restaura. 
+  Si no existe, inicializa valores por defecto y lo envía a personalizar su personaje.
+
+  3. AUTO-GUARDADO
+  Se usa un useEffect en React que escucha cambios en los estados (color, money, 
+  sandwichDone). Cada vez que cambia alguno, automáticamente envía un POST al 
+  servidor para actualizar Redis.
+
+  4. TECNOLOGÍA
+  Se usó redis-mock para desarrollo, que simula Redis en memoria sin necesidad de 
+  instalar un servidor Redis real. Los datos se pierden al reiniciar el servidor 
+  pero es ideal para testing.
+
+  El resultado es un sistema donde el usuario nunca pierde su progreso y todo se 
+  guarda automáticamente sin botones manuales.
+*/
+
 export default function App() {
   const [step, setStep] = useState("login");
   const [username, setUsername] = useState("");
