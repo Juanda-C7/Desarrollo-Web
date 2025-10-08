@@ -1,6 +1,6 @@
 // Servicio para AudioStack API con fallback a Web Audio API
 const BASE_URL = "https://api.audiostack.ai/v1/play/soundfx";
-const AUDIOSTACK_API_KEY = "c9d37f68-9078-499f-9b0c-184721d23055";
+const AUDIOSTACK_API_KEY = "api key de audioStack";
 
 class AudioService {
   constructor() {
