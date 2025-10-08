@@ -1,32 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import Phaser from "phaser";
 import p5 from "p5";
-
-/*
-  CÓMO SE TRABAJÓ REDIS PARA GUARDAR SESIÓN
-
-  1. ESTRUCTURA DE DATOS
-  En Redis se guarda cada usuario con una clave tipo "session:username" que contiene 
-  un JSON con sus datos (color del personaje, dinero, si completó el minijuego).
-
-  2. FLUJO DE CARGA
-  Cuando el usuario hace login, el cliente React hace una petición GET al servidor 
-  Express, que consulta Redis. Si encuentra datos, los devuelve y React los restaura. 
-  Si no existe, inicializa valores por defecto y lo envía a personalizar su personaje.
-
-  3. AUTO-GUARDADO
-  Se usa un useEffect en React que escucha cambios en los estados (color, money, 
-  sandwichDone). Cada vez que cambia alguno, automáticamente envía un POST al 
-  servidor para actualizar Redis.
-
-  4. TECNOLOGÍA
-  Se usó redis-mock para desarrollo, que simula Redis en memoria sin necesidad de 
-  instalar un servidor Redis real. Los datos se pierden al reiniciar el servidor 
-  pero es ideal para testing.
-
-  El resultado es un sistema donde el usuario nunca pierde su progreso y todo se 
-  guarda automáticamente sin botones manuales.
-*/
+import EducationalGame from "./components/EducationalGame";
+import QuizComponent from "./components/QuizComponent";
+import { audioService } from "./services/audioService";
 
 export default function App() {
   const [step, setStep] = useState("login");
@@ -37,6 +14,11 @@ export default function App() {
   const [sandwich, setSandwich] = useState([]);
   const [sandwichDone, setSandwichDone] = useState(null);
   const [money, setMoney] = useState(null);
+  const [currentMap, setCurrentMap] = useState("kitchen");
+  const [educationalPoints, setEducationalPoints] = useState(0);
+  const [currentLesson, setCurrentLesson] = useState(null);
+  const [currentQuiz, setCurrentQuiz] = useState(null);
+  const [showPressEHint, setShowPressEHint] = useState(false);
 
   const phaserRef = useRef(null);
   const p5Ref = useRef(null);
@@ -54,16 +36,16 @@ export default function App() {
       const res = await fetch(`http://localhost:4000/session/${username}`);
       const data = await res.json();
       if (data && Object.keys(data).length > 0) {
-        // Usuario existente → restaurar sesión
         setColor(data.color ?? 0xff0000);
         setMoney(data.money ?? 0);
         setSandwichDone(data.sandwichDone ?? false);
-        setStep("world"); // ir directo al mundo
+        setEducationalPoints(data.educationalPoints ?? 0);
+        setStep("world");
       } else {
-        // Usuario nuevo → inicializamos valores y vamos a personalización
         setColor(0xff0000);
         setMoney(0);
         setSandwichDone(false);
+        setEducationalPoints(0);
         setStep("customize");
       }
     } catch (err) {
@@ -71,6 +53,7 @@ export default function App() {
       setColor(0xff0000);
       setMoney(0);
       setSandwichDone(false);
+      setEducationalPoints(0);
       setStep("customize");
     }
   };
@@ -83,16 +66,22 @@ export default function App() {
       username &&
       color !== null &&
       money !== null &&
-      sandwichDone !== null
+      sandwichDone !== null &&
+      educationalPoints !== null
     ) {
-      const sessionData = { color, money, sandwichDone };
+      const sessionData = { 
+        color, 
+        money, 
+        sandwichDone, 
+        educationalPoints 
+      };
       fetch("http://localhost:4000/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, data: sessionData }),
       }).catch(() => console.log("❌ No se pudo guardar sesión en Redis"));
     }
-  }, [username, color, money, sandwichDone]);
+  }, [username, color, money, sandwichDone, educationalPoints]);
 
   const ingredients = [
     { name: "🥬 Lechuga", color: "#4caf50" },
@@ -110,39 +99,32 @@ export default function App() {
     verde: 0x00ff00,
   };
 
-  // Helper to convert Phaser-style hex number (0xff0000) to CSS hex "#ff0000"
   const numToCssHex = (num) => "#" + num.toString(16).padStart(6, "0");
 
   // ---------- INITIALIZE p5 + Phaser when entering world ----------
   useEffect(() => {
-      if (step === "world" && !phaserRef.current) {
-        // --- p5 sketch ---
-        const sketch = (s) => {
-          // logical stage size (Phaser physics use the same logical size)
-          const W = 800,
-            H = 600;
-  
-          s.setup = () => {
-            // we will create canvas inside an element within the stage (so it gets scaled)
-            s.createCanvas(W, H).parent("p5-container");
-          };
-  
-          s.draw = () => {
-            s.push();
-            s.noStroke();
+    if (step === "world" && !phaserRef.current) {
+      // --- p5 sketch ---
+      const sketch = (s) => {
+        const W = 800, H = 600;
+
+        s.setup = () => {
+          s.createCanvas(W, H).parent("p5-container");
+        };
+
+        s.draw = () => {
+          s.push();
+          s.noStroke();
+          
+          if (currentMap === "kitchen") {
+            // Cocina
             s.background("#e9f3fb");
-  
-            // pared
             s.fill("#f2e9dc");
             s.rect(0, 0, W, 220);
-  
-            // ventana
             s.fill("#9fd3ff");
             s.rect(520, 30, 180, 110, 8);
             s.fill("#fff7");
             s.rect(540, 50, 140, 70, 6);
-  
-            // suelo y tiles
             s.translate(0, 220);
             s.fill("#f8f2e6");
             s.rect(0, 0, W, H - 220);
@@ -155,8 +137,8 @@ export default function App() {
               }
             }
             s.pop();
-  
-            // mesa
+
+            // Mesa
             s.push();
             s.noStroke();
             s.fill("#00000022");
@@ -168,8 +150,8 @@ export default function App() {
             s.rect(330, 350, 18, 60, 4);
             s.rect(470, 350, 18, 60, 4);
             s.pop();
-  
-            // estufa
+
+            // Estufa
             s.push();
             s.fill("#c7c7c7");
             s.rect(90, 280, 140, 120, 6);
@@ -186,92 +168,158 @@ export default function App() {
               s.ellipse(90, yy, 12, 8);
             }
             s.pop();
-  
-            // estantes
+
+            // Estantes
             s.push();
             s.fill("#b3c8a6");
             s.rect(700, 160, 140, 60, 6);
             s.fill("#8b5a2b");
             s.rect(700, 200, 30, 30, 6);
             s.pop();
-          };
+
+            // Puerta Biblioteca
+            s.push();
+            s.fill("#8B4513");
+            s.rect(700, 160, 60, 80, 5);
+            s.fill("#654321");
+            s.rect(730, 200, 8, 4);
+            s.pop();
+
+          } else if (currentMap === "library") {
+            // Biblioteca
+            s.background("#2c3e50");
+            
+            // Estantes de libros
+            s.fill("#8B4513");
+            for (let i = 0; i < 5; i++) {
+              s.rect(100 + i * 120, 100, 80, 200, 5);
+              // Libros
+              s.fill("#e74c3c"); s.rect(105 + i * 120, 110, 70, 15, 2);
+              s.fill("#3498db"); s.rect(105 + i * 120, 130, 70, 15, 2);
+              s.fill("#f1c40f"); s.rect(105 + i * 120, 150, 70, 15, 2);
+              s.fill("#2ecc71"); s.rect(105 + i * 120, 170, 70, 15, 2);
+              s.fill("#9b59b6"); s.rect(105 + i * 120, 190, 70, 15, 2);
+              s.fill("#e67e22"); s.rect(105 + i * 120, 210, 70, 15, 2);
+              s.fill("#1abc9c"); s.rect(105 + i * 120, 230, 70, 15, 2);
+              s.fill("#8B4513");
+            }
+            
+            // Área de computadoras
+            s.fill("#34495e");
+            s.rect(100, 350, 600, 150, 10);
+            s.fill("#2c3e50");
+            s.rect(120, 370, 150, 110, 5);
+            s.rect(290, 370, 150, 110, 5);
+            s.rect(460, 370, 150, 110, 5);
+            
+            // Mesa de quiz
+            s.fill("#16a085");
+            s.rect(300, 200, 200, 80, 5);
+            s.fill("#1abc9c");
+            s.textSize(16);
+            s.textAlign(s.CENTER, s.CENTER);
+            s.text("📝 Área de Quizzes", 400, 240);
+            
+            // Puerta de regreso
+            s.fill("#8B4513");
+            s.rect(50, 300, 60, 80, 5);
+            s.fill("#fff");
+            s.textSize(12);
+            s.text("Salir", 80, 340);
+          }
         };
-  
-        // mount p5 inside stage's p5-container
-        p5Ref.current = new p5(sketch, document.getElementById("p5-container"));
-  
-        // --- Phaser ---
-        const config = {
-          type: Phaser.AUTO,
-          width: 800,
-          height: 600,
-          parent: "game-stage", // ahora apuntamos al elemento stage
-          transparent: true,
-          physics: {
-            default: "arcade",
-            arcade: { gravity: { y: 0 }, debug: false },
-          },
-          scene: { preload, create, update },
-        };
-  
-        let player;
-        let cursors;
-        let table;
-        let keyA;
-  
-        function preload() {}
-  
-        function create() {
-          const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
-          this.physics.add.existing(floor, true);
-  
-          const walls = [
-            this.add.rectangle(400, 10, 800, 20, 0x000000, 0),
-            this.add.rectangle(400, 590, 800, 20, 0x000000, 0),
-            this.add.rectangle(10, 300, 20, 600, 0x000000, 0),
-            this.add.rectangle(790, 300, 20, 600, 0x000000, 0),
-          ];
-          walls.forEach((w) => this.physics.add.existing(w, true));
-  
-          table = this.add.rectangle(400, 300, 220, 80, 0x000000, 0);
-          this.physics.add.existing(table, true);
-  
-          const chair1 = this.add.rectangle(330, 350, 30, 30, 0x000000, 0);
-          const chair2 = this.add.rectangle(470, 350, 30, 30, 0x000000, 0);
-          this.physics.add.existing(chair1, true);
-          this.physics.add.existing(chair2, true);
-  
-          const stove = this.add.rectangle(90, 280, 140, 120, 0x000000, 0);
-          this.physics.add.existing(stove, true);
-  
-          player = this.add.circle(50, 300, 18, 0xffffff, 0);
-          this.physics.add.existing(player);
-          player.body.setCollideWorldBounds(true);
-          player.body.setCircle(18);
-          player.body.setOffset(-18, -18);
-  
-          const obstacles = [...walls, table, chair1, chair2, stove];
-          obstacles.forEach((obs) => {
-            this.physics.add.collider(player, obs);
-          });
-  
-          const exclamation = this.add
-            .text(table.x, table.y - 60, "!", {
-              font: "36px Arial",
-              fill: "#ff3333",
-              fontStyle: "bold",
-            })
-            .setOrigin(0.5, 0.5);
-          window.tableExclamation = exclamation;
-  
-          cursors = this.input.keyboard.createCursorKeys();
-          keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-  
-          window.phaserScene = this;
-          window.phaserPlayer = player;
-  
-          this.cameras.main.centerOn(400, 300);
-        }
+      };
+
+      p5Ref.current = new p5(sketch, document.getElementById("p5-container"));
+
+      // --- Phaser ---
+      const config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        parent: "game-stage",
+        transparent: true,
+        physics: {
+          default: "arcade",
+          arcade: { gravity: { y: 0 }, debug: false },
+        },
+        scene: { preload, create, update },
+      };
+
+      let player;
+      let cursors;
+      let table;
+      let keyA, keyE;
+
+      function preload() {}
+
+      function create() {
+        const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
+        this.physics.add.existing(floor, true);
+
+        const walls = [
+          this.add.rectangle(400, 10, 800, 20, 0x000000, 0),
+          this.add.rectangle(400, 590, 800, 20, 0x000000, 0),
+          this.add.rectangle(10, 300, 20, 600, 0x000000, 0),
+          this.add.rectangle(790, 300, 20, 600, 0x000000, 0),
+        ];
+        walls.forEach((w) => this.physics.add.existing(w, true));
+
+        table = this.add.rectangle(400, 300, 220, 80, 0x000000, 0);
+        this.physics.add.existing(table, true);
+
+        const chair1 = this.add.rectangle(330, 350, 30, 30, 0x000000, 0);
+        const chair2 = this.add.rectangle(470, 350, 30, 30, 0x000000, 0);
+        this.physics.add.existing(chair1, true);
+        this.physics.add.existing(chair2, true);
+
+        const stove = this.add.rectangle(90, 280, 140, 120, 0x000000, 0);
+        this.physics.add.existing(stove, true);
+
+        // Puerta biblioteca
+        const libraryDoor = this.add.rectangle(700, 200, 60, 80, 0x000000, 0);
+        this.physics.add.existing(libraryDoor, true);
+
+        // Puerta salida biblioteca
+        const exitDoor = this.add.rectangle(80, 340, 60, 80, 0x000000, 0);
+        this.physics.add.existing(exitDoor, true);
+
+        player = this.add.circle(50, 300, 18, 0xffffff, 0);
+        this.physics.add.existing(player);
+        player.body.setCollideWorldBounds(true);
+        player.body.setCircle(18);
+        player.body.setOffset(-18, -18);
+
+        const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor];
+        obstacles.forEach((obs) => {
+          this.physics.add.collider(player, obs);
+        });
+
+        const exclamation = this.add
+          .text(table.x, table.y - 60, "!", {
+            font: "36px Arial",
+            fill: "#ff3333",
+            fontStyle: "bold",
+          })
+          .setOrigin(0.5, 0.5);
+        window.tableExclamation = exclamation;
+
+        const librarySign = this.add
+          .text(libraryDoor.x, libraryDoor.y - 60, "📚", {
+            font: "24px Arial",
+          })
+          .setOrigin(0.5, 0.5);
+        window.librarySign = librarySign;
+
+        cursors = this.input.keyboard.createCursorKeys();
+        keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+        keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+
+        window.phaserScene = this;
+        window.phaserPlayer = player;
+
+        this.cameras.main.centerOn(400, 300);
+      }
 
       function update() {
         if (!player || !cursors) return;
@@ -283,13 +331,11 @@ export default function App() {
         if (cursors.up.isDown) player.body.setVelocityY(-speed);
         if (cursors.down.isDown) player.body.setVelocityY(speed);
 
-        const dist = Phaser.Math.Distance.Between(
-          player.x,
-          player.y,
-          table.x,
-          table.y
+        // Interacción con mesa
+        const distToTable = Phaser.Math.Distance.Between(
+          player.x, player.y, table.x, table.y
         );
-        if (dist < 70) {
+        if (distToTable < 70 && currentMap === "kitchen") {
           window.nearTable = true;
           if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
             const ev = new CustomEvent("openSandwich");
@@ -299,8 +345,39 @@ export default function App() {
           window.nearTable = false;
         }
 
+        // Interacción con puerta biblioteca
+        const distToLibrary = Phaser.Math.Distance.Between(
+          player.x, player.y, 700, 200
+        );
+        if (distToLibrary < 50 && currentMap === "kitchen") {
+          window.nearLibraryDoor = true;
+          if (Phaser.Input.Keyboard.JustDown(keyE)) {
+            const ev = new CustomEvent("enterLibrary");
+            window.dispatchEvent(ev);
+          }
+        } else {
+          window.nearLibraryDoor = false;
+        }
+
+        // Interacción con puerta salida
+        const distToExit = Phaser.Math.Distance.Between(
+          player.x, player.y, 80, 340
+        );
+        if (distToExit < 50 && currentMap === "library") {
+          window.nearExitDoor = true;
+          if (Phaser.Input.Keyboard.JustDown(keyE)) {
+            const ev = new CustomEvent("exitLibrary");
+            window.dispatchEvent(ev);
+          }
+        } else {
+          window.nearExitDoor = false;
+        }
+
         if (window.tableExclamation)
-          window.tableExclamation.setVisible(!sandwichDone);
+          window.tableExclamation.setVisible(!sandwichDone && currentMap === "kitchen");
+        
+        if (window.librarySign)
+          window.librarySign.setVisible(currentMap === "kitchen");
       }
 
       phaserRef.current = new Phaser.Game(config);
@@ -318,9 +395,17 @@ export default function App() {
             svgEl.style.left = `${x}px`;
             svgEl.style.top = `${y}px`;
 
-            const near = !!window.nearTable;
-            const ev = new CustomEvent("nearTableUpdate", { detail: { near } });
-            window.dispatchEvent(ev);
+            const nearTable = !!window.nearTable;
+            const nearLibrary = !!window.nearLibraryDoor;
+            const nearExit = !!window.nearExitDoor;
+            
+            const ev1 = new CustomEvent("nearTableUpdate", { detail: { near: nearTable } });
+            const ev2 = new CustomEvent("nearLibraryUpdate", { detail: { near: nearLibrary } });
+            const ev3 = new CustomEvent("nearExitUpdate", { detail: { near: nearExit } });
+            
+            window.dispatchEvent(ev1);
+            window.dispatchEvent(ev2);
+            window.dispatchEvent(ev3);
           }
         } catch (err) {}
         rafRef.current = requestAnimationFrame(updateSvg);
@@ -332,15 +417,37 @@ export default function App() {
         setShowPressAHint(false);
         setSandwich([]);
       };
-      const nearListener = (e) => {
-        setShowPressAHint(e.detail.near && !sandwichDone);
+      
+      const nearTableListener = (e) => {
+        setShowPressAHint(e.detail.near && !sandwichDone && currentMap === "kitchen");
       };
+      
+      const nearLibraryListener = (e) => {
+        setShowPressEHint(e.detail.near && currentMap === "kitchen");
+      };
+      
+      const enterLibraryListener = () => {
+        setCurrentMap("library");
+        audioService.playSuccessSound();
+      };
+      
+      const exitLibraryListener = () => {
+        setCurrentMap("kitchen");
+        audioService.playSuccessSound();
+      };
+
       window.addEventListener("openSandwich", openListener);
-      window.addEventListener("nearTableUpdate", nearListener);
+      window.addEventListener("nearTableUpdate", nearTableListener);
+      window.addEventListener("nearLibraryUpdate", nearLibraryListener);
+      window.addEventListener("enterLibrary", enterLibraryListener);
+      window.addEventListener("exitLibrary", exitLibraryListener);
 
       const cleanup = () => {
         window.removeEventListener("openSandwich", openListener);
-        window.removeEventListener("nearTableUpdate", nearListener);
+        window.removeEventListener("nearTableUpdate", nearTableListener);
+        window.removeEventListener("nearLibraryUpdate", nearLibraryListener);
+        window.removeEventListener("enterLibrary", enterLibraryListener);
+        window.removeEventListener("exitLibrary", exitLibraryListener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
       phaserRef.currentCleanup = cleanup;
@@ -359,7 +466,7 @@ export default function App() {
         } catch (e) {}
       }
     };
-  }, [step, color, sandwichDone]);
+  }, [step, color, sandwichDone, currentMap]);
 
   // Scale / responsive handling
   useEffect(() => {
@@ -400,6 +507,7 @@ export default function App() {
     setSandwichDone(true);
     setShowSandwichMinigame(false);
     setMoney((prev) => prev + 5);
+    audioService.playCoinSound();
   }
 
   function onDragStart(e, ing) {
@@ -559,7 +667,7 @@ export default function App() {
       }}
     >
       <h2 style={{ textAlign: "center" }}>
-        Hola {username}! Muévete con las flechas.
+        Hola {username}! {currentMap === "kitchen" ? "Cocina" : "Biblioteca"} - Muévete con las flechas.
       </h2>
       <div
         ref={containerRef}
@@ -709,7 +817,23 @@ export default function App() {
         💰 {money}
       </div>
 
-      {showPressAHint && !showSandwichMinigame && !sandwichDone && (
+      <div
+        style={{
+          position: "absolute",
+          top: 20,
+          left: 20,
+          background: "#2c3e50",
+          color: "#fff",
+          padding: "10px 15px",
+          borderRadius: 8,
+          fontWeight: "bold",
+          fontSize: 18,
+        }}
+      >
+        🧠 {educationalPoints}
+      </div>
+
+      {showPressAHint && !showSandwichMinigame && !sandwichDone && currentMap === "kitchen" && (
         <div
           style={{
             position: "absolute",
@@ -722,11 +846,28 @@ export default function App() {
             borderRadius: 8,
           }}
         >
-          Presiona <b>A</b> para interactuar
+          Presiona <b>A</b> para hacer sandwich
         </div>
       )}
 
-      {sandwichDone && (
+      {showPressEHint && currentMap === "kitchen" && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#16a085",
+            color: "#fff",
+            padding: "8px 12px",
+            borderRadius: 8,
+          }}
+        >
+          Presiona <b>E</b> para entrar a la biblioteca
+        </div>
+      )}
+
+      {sandwichDone && currentMap === "kitchen" && (
         <div
           style={{
             position: "absolute",
@@ -743,131 +884,261 @@ export default function App() {
         </div>
       )}
 
+      {currentMap === "library" && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'rgba(255,255,255,0.95)',
+          padding: '20px',
+          borderRadius: '10px',
+          zIndex: 100,
+          width: '400px',
+          textAlign: 'center'
+        }}>
+          <h2>📚 Biblioteca Educativa</h2>
+          <div style={{ display: 'flex', gap: '10px', flexDirection: 'column', marginBottom: '20px' }}>
+            <button 
+              onClick={() => {
+                if (money >= 5) {
+                  setMoney(money - 5);
+                  setCurrentLesson('programming');
+                  audioService.playCoinSound();
+                }
+              }}
+              disabled={money < 5}
+              style={{
+                padding: '10px',
+                borderRadius: '5px',
+                backgroundColor: money >= 5 ? '#3498db' : '#95a5a6',
+                color: 'white',
+                border: 'none',
+                cursor: money >= 5 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              🧠 Minijuego de Programación (5 monedas)
+            </button>
+            
+            <button 
+              onClick={() => setCurrentQuiz('computer_science')}
+              disabled={educationalPoints < 10}
+              style={{
+                padding: '10px',
+                borderRadius: '5px',
+                backgroundColor: educationalPoints >= 10 ? '#9b59b6' : '#95a5a6',
+                color: 'white',
+                border: 'none',
+                cursor: educationalPoints >= 10 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              📝 Tomar Quiz CS (Requiere 10 puntos)
+            </button>
+            
+            <button onClick={() => {
+              setCurrentMap('kitchen');
+              audioService.playSuccessSound();
+            }} style={{
+              padding: '10px',
+              borderRadius: '5px',
+              backgroundColor: '#e74c3c',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer'
+            }}>
+              🚪 Volver a la Cocina
+            </button>
+          </div>
+          
+          <div style={{ marginTop: '10px', padding: '10px', background: '#ecf0f1', borderRadius: '5px' }}>
+            <strong>Puntos Educativos:</strong> {educationalPoints}
+          </div>
+        </div>
+      )}
+
       {showSandwichMinigame && (
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%,-50%)",
-            width: 360,
-            background: "#fff",
-            border: "3px solid #333",
-            padding: 18,
-            borderRadius: 12,
-            zIndex: 10,
-          }}
-        >
-          <h3 style={{ marginTop: 0 }}>🥪 Arma tu Sandwich</h3>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
           <div
-            onDrop={onDrop}
-            onDragOver={allowDrop}
             style={{
-              minHeight: 140,
-              border: "2px dashed #ccc",
-              borderRadius: 10,
-              display: "flex",
-              flexDirection: "column-reverse",
-              alignItems: "center",
-              padding: 10,
-              background: "#fbfbfb",
+              width: 360,
+              background: "#fff",
+              border: "3px solid #333",
+              padding: 18,
+              borderRadius: 12,
             }}
           >
+            <h3 style={{ marginTop: 0 }}>🥪 Arma tu Sandwich</h3>
             <div
+              onDrop={onDrop}
+              onDragOver={allowDrop}
               style={{
-                width: 140,
-                height: 20,
-                background: "#deb887",
-                borderRadius: 6,
-                margin: "6px 0",
+                minHeight: 140,
+                border: "2px dashed #ccc",
+                borderRadius: 10,
+                display: "flex",
+                flexDirection: "column-reverse",
+                alignItems: "center",
+                padding: 10,
+                background: "#fbfbfb",
               }}
-            />
-            {sandwich.map((ing, i) => (
+            >
               <div
-                key={i}
                 style={{
                   width: 140,
-                  height: 18,
-                  background: ing.color,
-                  borderRadius: 5,
-                  margin: "5px 0",
+                  height: 20,
+                  background: "#deb887",
+                  borderRadius: 6,
+                  margin: "6px 0",
                 }}
               />
-            ))}
+              {sandwich.map((ing, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: 140,
+                    height: 18,
+                    background: ing.color,
+                    borderRadius: 5,
+                    margin: "5px 0",
+                  }}
+                />
+              ))}
+              <div
+                style={{
+                  width: 140,
+                  height: 20,
+                  background: "#deb887",
+                  borderRadius: 6,
+                  margin: "6px 0",
+                }}
+              />
+            </div>
             <div
               style={{
-                width: 140,
-                height: 20,
-                background: "#deb887",
-                borderRadius: 6,
-                margin: "6px 0",
+                display: "flex",
+                gap: 10,
+                marginTop: 12,
+                flexWrap: "wrap",
               }}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              marginTop: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            {ingredients.map((ing) => (
-              <div
-                key={ing.name}
-                draggable
-                onDragStart={(e) => onDragStart(e, ing)}
+            >
+              {ingredients.map((ing) => (
+                <div
+                  key={ing.name}
+                  draggable
+                  onDragStart={(e) => onDragStart(e, ing)}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 10,
+                    background: ing.color,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 24,
+                    cursor: "grab",
+                  }}
+                  title={ing.name}
+                >
+                  {ing.name.split(" ")[0]}
+                </div>
+              ))}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              <button
+                onClick={finishSandwich}
                 style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 10,
-                  background: ing.color,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 24,
-                  cursor: "grab",
+                  padding: "8px 12px",
+                  background: "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
                 }}
-                title={ing.name}
               >
-                {ing.name.split(" ")[0]}
-              </div>
-            ))}
+                Terminar Sandwich
+              </button>
+              <button
+                onClick={() => {
+                  setShowSandwichMinigame(false);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  background: "#ccc",
+                  border: "none",
+                  borderRadius: 8,
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: 10,
-              marginTop: 12,
+        </div>
+      )}
+
+      {/* Modal para EducationalGame */}
+      {currentLesson && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <EducationalGame 
+            onComplete={(points) => {
+              setEducationalPoints(prev => prev + points);
+              setCurrentLesson(null);
+              audioService.playSuccessSound();
             }}
-          >
-            <button
-              onClick={finishSandwich}
-              style={{
-                padding: "8px 12px",
-                background: "#4caf50",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-              }}
-            >
-              Terminar Sandwich
-            </button>
-            <button
-              onClick={() => {
-                setShowSandwichMinigame(false);
-              }}
-              style={{
-                padding: "8px 12px",
-                background: "#ccc",
-                border: "none",
-                borderRadius: 8,
-              }}
-            >
-              Cancelar
-            </button>
-          </div>
+            cost={5}
+          />
+        </div>
+      )}
+
+      {/* Modal para QuizComponent */}
+      {currentQuiz && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <QuizComponent 
+            topic={currentQuiz}
+            onComplete={(points) => {
+              setEducationalPoints(prev => prev + points);
+              setCurrentQuiz(null);
+              audioService.playSuccessSound();
+            }}
+          />
         </div>
       )}
     </div>
