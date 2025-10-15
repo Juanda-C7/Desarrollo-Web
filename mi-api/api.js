@@ -67,6 +67,60 @@ app.get('/logros/:jugadorId', (req, res) => {
     res.json(jugadores[jugadorId].logros);
 });
 
+// GET /logros/:jugadorId/:logroId - Obtener un logro específico
+app.get('/logros/:jugadorId/:logroId', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    const logroId = Number(req.params.logroId);
+    
+    if (!jugadores[jugadorId]) {
+        return res.status(404).json({ error: 'Jugador no encontrado' });
+    }
+    
+    const logro = jugadores[jugadorId].logros.find(l => l.id === logroId);
+    
+    if (!logro) {
+        return res.status(404).json({ error: 'Logro no encontrado' });
+    }
+    
+    res.json(logro);
+});
+
+// POST /logros/:jugadorId - Crear nuevo logro
+app.post('/logros/:jugadorId', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    const { nombre, descripcion, tipo, recompensa, icono } = req.body;
+    
+    if (!nombre) {
+        return res.status(422).json({ error: 'El campo "nombre" es obligatorio' });
+    }
+    
+    // Si el jugador no existe, crearlo
+    if (!jugadores[jugadorId]) {
+        jugadores[jugadorId] = {
+            logros: crearLogrosBase(jugadorId),
+            progresoMisiones: {}
+        };
+    }
+    
+    const nuevoId = jugadores[jugadorId].logros.length > 0 
+        ? Math.max(...jugadores[jugadorId].logros.map(l => l.id)) + 1 
+        : 1;
+    
+    const nuevoLogro = {
+        id: nuevoId,
+        jugadorId,
+        nombre,
+        descripcion: descripcion || "Nuevo logro personalizado",
+        completado: false,
+        tipo: tipo || "general",
+        recompensa: recompensa || "🥉",
+        icono: icono || "🎯"
+    };
+    
+    jugadores[jugadorId].logros.push(nuevoLogro);
+    res.status(201).json(nuevoLogro);
+});
+
 // PATCH /logros/:jugadorId/:logroId/completar - Marcar logro como completado
 app.patch('/logros/:jugadorId/:logroId/completar', (req, res) => {
     const jugadorId = req.params.jugadorId;
@@ -96,6 +150,25 @@ app.patch('/logros/:jugadorId/:logroId/completar', (req, res) => {
     });
 });
 
+// DELETE /logros/:jugadorId/:logroId - Eliminar un logro
+app.delete('/logros/:jugadorId/:logroId', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    const logroId = Number(req.params.logroId);
+    
+    if (!jugadores[jugadorId]) {
+        return res.status(404).json({ error: 'Jugador no encontrado' });
+    }
+    
+    const logroIndex = jugadores[jugadorId].logros.findIndex(l => l.id === logroId);
+    
+    if (logroIndex === -1) {
+        return res.status(404).json({ error: 'Logro no encontrado' });
+    }
+    
+    const logroEliminado = jugadores[jugadorId].logros.splice(logroIndex, 1)[0];
+    res.json(logroEliminado);
+});
+
 // ========================================
 // RUTAS DE MISIONES
 // ========================================
@@ -103,6 +176,18 @@ app.patch('/logros/:jugadorId/:logroId/completar', (req, res) => {
 // GET /misiones - Obtener todas las misiones
 app.get('/misiones', (req, res) => {
     res.json(misiones);
+});
+
+// GET /misiones/:id - Obtener una misión específica
+app.get('/misiones/:id', (req, res) => {
+    const misionId = Number(req.params.id);
+    const mision = misiones.find(m => m.id === misionId);
+    
+    if (!mision) {
+        return res.status(404).json({ error: 'Misión no encontrada' });
+    }
+    
+    res.json(mision);
 });
 
 // PATCH /misiones/:jugadorId/:misionId/progreso - Actualizar progreso de misión
@@ -293,12 +378,16 @@ app.listen(PORT, () => {
     console.log(`🎮 API de Logros y Misiones escuchando en http://localhost:${PORT}`);
     console.log(`Endpoints disponibles:`);
     console.log(`   LOGROS:`);
-    console.log(`     GET    /logros/:jugadorId          - Logros del jugador`);
+    console.log(`     GET    /logros/:jugadorId                   - Logros del jugador`);
+    console.log(`     GET    /logros/:jugadorId/:logroId          - Logro específico`);
+    console.log(`     POST   /logros/:jugadorId                   - Crear logro`);
     console.log(`     PATCH  /logros/:jugadorId/:logroId/completar - Completar logro`);
+    console.log(`     DELETE /logros/:jugadorId/:logroId          - Eliminar logro`);
     console.log(`   MISIONES:`);
-    console.log(`     GET    /misiones                   - Todas las misiones`);
+    console.log(`     GET    /misiones                           - Todas las misiones`);
+    console.log(`     GET    /misiones/:id                       - Misión específica`);
     console.log(`     PATCH  /misiones/:jugadorId/:misionId/progreso - Actualizar progreso`);
     console.log(`   ESPECIALES:`);
-    console.log(`     GET    /estado/:jugadorId          - Estado completo`);
-    console.log(`     POST   /inicializar-jugador        - Inicializar jugador`);
+    console.log(`     GET    /estado/:jugadorId                  - Estado completo`);
+    console.log(`     POST   /inicializar-jugador                - Inicializar jugador`);
 });
