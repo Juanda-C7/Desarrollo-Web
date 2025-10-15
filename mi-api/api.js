@@ -1,119 +1,304 @@
 // ========================================
-// API REST SIMPLE PARA GESTIONAR PROYECTOS
+// API PARA LOGROS Y MISIONES DEL JUEGO ROUNDY WORLD
 // ========================================
 
-// 1. IMPORTAR LAS LIBRERÍAS QUE NECESITAMOS
-const express = require('express'); // Express: framework para crear APIs
-const cors = require('cors');       // CORS: permite que otros sitios web usen nuestra API
+const express = require('express');
+const cors = require('cors');
 
-// 2. CONFIGURAR NUESTRA APLICACIÓN
-const app = express();              // Crear la aplicación Express
-const PORT = 2001;                  // Puerto donde va a correr nuestro servidor
+const app = express();
+const PORT = 2001;
 
-// 3. CONFIGURAR MIDDLEWARES (funciones que se ejecutan antes de las rutas)
-app.use(cors());                    // Permitir peticiones desde cualquier origen
-app.use(express.json());            // Convertir JSON del body de las peticiones a objetos JavaScript
+app.use(cors());
+app.use(express.json());
 
-// 4. CREAR NUESTRA "BASE DE DATOS" EN MEMORIA
-// ⚠️ IMPORTANTE: Esta base de datos se borra cuando apagamos el servidor
-let projects = [
-  { id: 1, name: 'CV en Angular', stars: 5 },      // Proyecto 1
-  { id: 2, name: 'Juego de Memoria', stars: 4 }    // Proyecto 2
+// Base de datos en memoria solo para logros y misiones
+let jugadores = {}; // { username: { logros: [], progresoMisiones: {} } }
+
+// Misiones globales para todos los jugadores
+const misiones = [
+    { 
+        id: 1, 
+        nombre: "🍽️ Chef Novato", 
+        descripcion: "Prepara tu primer sandwich",
+        recompensa: "🥉",
+        tipo: "cocina"
+    },
+    { 
+        id: 2, 
+        nombre: "🎓 Aprendiz del Saber", 
+        descripcion: "Completa una lección educativa",
+        recompensa: "🥈",
+        tipo: "educacion"
+    },
+    { 
+        id: 3, 
+        nombre: "🏛️ Explorador Académico", 
+        descripcion: "Visita la biblioteca por primera vez",
+        recompensa: "🥉",
+        tipo: "exploracion"
+    },
+    { 
+        id: 4, 
+        nombre: "🏆 Maestro de Quizzes", 
+        descripcion: "Completa un quiz correctamente",
+        recompensa: "🥇",
+        tipo: "educacion"
+    }
 ];
 
 // ========================================
-// DEFINIR LAS RUTAS DE NUESTRA API
+// RUTAS DE LOGROS
 // ========================================
 
-// 5. RUTA GET /projects - OBTENER TODOS LOS PROYECTOS
-app.get('/projects', (req, res) => {
-  // req = request (petición que llega)
-  // res = response (respuesta que enviamos)
-  res.json(projects); // Enviar todos los proyectos como JSON
+// GET /logros/:jugadorId - Obtener logros de un jugador
+app.get('/logros/:jugadorId', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    
+    // Si el jugador no existe, devolver logros base
+    if (!jugadores[jugadorId]) {
+        const logrosBase = crearLogrosBase(jugadorId);
+        jugadores[jugadorId] = {
+            logros: logrosBase,
+            progresoMisiones: {}
+        };
+        return res.json(logrosBase);
+    }
+    
+    res.json(jugadores[jugadorId].logros);
 });
 
-// 6. RUTA GET /projects/:id - OBTENER UN PROYECTO ESPECÍFICO POR ID
-app.get('/projects/:id', (req, res) => {
-  const id = Number(req.params.id);           // Convertir el ID de string a número
-  const proyecto = projects.find(p => p.id === id); // Buscar el proyecto con ese ID
-  
-  // Si no encuentra el proyecto, devolver error 404
-  if (!proyecto) {
-    return res.status(404).json({ error: 'Proyecto no encontrado' });
-  }
-  
-  res.json(proyecto); // Enviar el proyecto encontrado
+// PATCH /logros/:jugadorId/:logroId/completar - Marcar logro como completado
+app.patch('/logros/:jugadorId/:logroId/completar', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    const logroId = Number(req.params.logroId);
+    
+    // Si el jugador no existe, crearlo
+    if (!jugadores[jugadorId]) {
+        jugadores[jugadorId] = {
+            logros: crearLogrosBase(jugadorId),
+            progresoMisiones: {}
+        };
+    }
+    
+    const logro = jugadores[jugadorId].logros.find(l => l.id === logroId);
+    
+    if (!logro) {
+        return res.status(404).json({ error: 'Logro no encontrado' });
+    }
+
+    if (!logro.completado) {
+        logro.completado = true;
+    }
+
+    res.json({ 
+        logro, 
+        mensaje: `¡Logro ${logro.nombre} completado! Ganaste: ${logro.recompensa}`
+    });
 });
 
-// 7. RUTA POST /projects - CREAR UN NUEVO PROYECTO
-app.post('/projects', (req, res) => {
-  const { name, stars } = req.body; // Extraer name y stars del body de la petición
-  
-  // Validar que el nombre sea obligatorio
-  if (!name) {
-    return res.status(422).json({ error: 'El campo "name" es obligatorio' });
-  }
-  
-  // Generar un nuevo ID (el más alto + 1)
-  const nuevoId = Math.max(0, ...projects.map(p => p.id)) + 1;
-  
-  // Crear el nuevo proyecto
-  const nuevoProyecto = { 
-    id: nuevoId, 
-    name: name, 
-    stars: Number(stars) || 0  // Convertir stars a número, si no existe usar 0
-  };
-  
-  projects.push(nuevoProyecto); // Agregar el proyecto a nuestra "base de datos"
-  res.status(201).json(nuevoProyecto); // Devolver el proyecto creado con código 201
+// ========================================
+// RUTAS DE MISIONES
+// ========================================
+
+// GET /misiones - Obtener todas las misiones
+app.get('/misiones', (req, res) => {
+    res.json(misiones);
 });
 
-// 8. RUTA PATCH /projects/:id - ACTUALIZAR PARCIALMENTE UN PROYECTO
-app.patch('/projects/:id', (req, res) => {
-  const id = Number(req.params.id);           // ID del proyecto a actualizar
-  const proyecto = projects.find(p => p.id === id); // Buscar el proyecto
-  
-  // Si no encuentra el proyecto, devolver error 404
-  if (!proyecto) {
-    return res.status(404).json({ error: 'Proyecto no encontrado' });
-  }
+// PATCH /misiones/:jugadorId/:misionId/progreso - Actualizar progreso de misión
+app.patch('/misiones/:jugadorId/:misionId/progreso', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    const misionId = Number(req.params.misionId);
+    
+    const mision = misiones.find(m => m.id === misionId);
+    
+    if (!mision) {
+        return res.status(404).json({ error: 'Misión no encontrada' });
+    }
 
-  const { name, stars } = req.body; // Datos nuevos que queremos actualizar
-  
-  // Actualizar solo los campos que vienen en la petición
-  if (name !== undefined) proyecto.name = name;           // Si viene name, actualizarlo
-  if (stars !== undefined) proyecto.stars = Number(stars); // Si viene stars, actualizarlo
+    // Si el jugador no existe, crearlo
+    if (!jugadores[jugadorId]) {
+        jugadores[jugadorId] = {
+            logros: crearLogrosBase(jugadorId),
+            progresoMisiones: {}
+        };
+    }
 
-  res.json(proyecto); // Devolver el proyecto actualizado
+    // Inicializar progreso de misiones si no existe
+    if (!jugadores[jugadorId].progresoMisiones[misionId]) {
+        jugadores[jugadorId].progresoMisiones[misionId] = {
+            progresoActual: 0,
+            completada: false
+        };
+    }
+
+    const { incremento } = req.body;
+    jugadores[jugadorId].progresoMisiones[misionId].progresoActual += Number(incremento) || 1;
+    
+    let completada = false;
+    if (jugadores[jugadorId].progresoMisiones[misionId].progresoActual >= 1 && 
+        !jugadores[jugadorId].progresoMisiones[misionId].completada) {
+        jugadores[jugadorId].progresoMisiones[misionId].completada = true;
+        completada = true;
+    }
+
+    res.json({ 
+        mision, 
+        progreso: jugadores[jugadorId].progresoMisiones[misionId],
+        completada,
+        mensaje: completada ? `¡Misión ${mision.nombre} completada! Ganaste: ${mision.recompensa}` : "Progreso actualizado"
+    });
 });
 
-// 9. RUTA DELETE /projects/:id - ELIMINAR UN PROYECTO
-app.delete('/projects/:id', (req, res) => {
-  const id = Number(req.params.id);                    // ID del proyecto a eliminar
-  const indice = projects.findIndex(p => p.id === id); // Buscar el índice del proyecto
-  
-  // Si no encuentra el proyecto, devolver error 404
-  if (indice === -1) {
-    return res.status(404).json({ error: 'Proyecto no encontrado' });
-  }
-  
-  // Eliminar el proyecto del array y guardarlo en una variable
-  const proyectoEliminado = projects.splice(indice, 1)[0];
-  res.json(proyectoEliminado); // Devolver el proyecto que se eliminó
+// ========================================
+// RUTAS ESPECIALES PARA EL JUEGO
+// ========================================
+
+// GET /estado/:jugadorId - Estado completo del jugador
+app.get('/estado/:jugadorId', (req, res) => {
+    const jugadorId = req.params.jugadorId;
+    
+    // Si el jugador no existe, crear uno nuevo
+    if (!jugadores[jugadorId]) {
+        jugadores[jugadorId] = {
+            logros: crearLogrosBase(jugadorId),
+            progresoMisiones: {}
+        };
+        
+        // Inicializar progreso de misiones
+        misiones.forEach(mision => {
+            jugadores[jugadorId].progresoMisiones[mision.id] = {
+                progresoActual: 0,
+                completada: false
+            };
+        });
+    }
+    
+    const logrosJugador = jugadores[jugadorId].logros;
+    const logrosCompletados = logrosJugador.filter(l => l.completado);
+    
+    // Calcular trofeos basados en logros completados
+    const trofeos = {
+        bronce: logrosCompletados.filter(l => l.recompensa === "🥉").length,
+        plata: logrosCompletados.filter(l => l.recompensa === "🥈").length,
+        oro: logrosCompletados.filter(l => l.recompensa === "🥇").length,
+        total: logrosCompletados.length
+    };
+    
+    // Obtener misiones activas (no completadas por este jugador)
+    const misionesActivas = misiones.filter(mision => {
+        const progreso = jugadores[jugadorId].progresoMisiones[mision.id];
+        return !progreso || !progreso.completada;
+    });
+    
+    res.json({
+        jugadorId,
+        logros: logrosJugador,
+        misiones: misionesActivas,
+        trofeos: trofeos,
+        totalLogros: logrosJugador.length,
+        logrosCompletados: logrosCompletados.length,
+        misionesActivas: misionesActivas.length,
+        progresoTotal: logrosJugador.length > 0 ? Math.round((logrosCompletados.length / logrosJugador.length) * 100) : 0
+    });
 });
 
-// 10. MANEJAR RUTAS NO ENCONTRADAS (404)
+// POST /inicializar-jugador - Inicializar jugador
+app.post('/inicializar-jugador', (req, res) => {
+    const { jugadorId } = req.body;
+    
+    if (!jugadorId) {
+        return res.status(422).json({ error: 'El campo "jugadorId" es obligatorio' });
+    }
+    
+    // Si el jugador no existe, crearlo
+    if (!jugadores[jugadorId]) {
+        jugadores[jugadorId] = {
+            logros: crearLogrosBase(jugadorId),
+            progresoMisiones: {}
+        };
+        
+        // Inicializar progreso de misiones
+        misiones.forEach(mision => {
+            jugadores[jugadorId].progresoMisiones[mision.id] = {
+                progresoActual: 0,
+                completada: false
+            };
+        });
+    }
+    
+    res.json({ 
+        message: 'Jugador inicializado correctamente', 
+        logros: jugadores[jugadorId].logros
+    });
+});
+
+// Función para crear logros base para cualquier jugador
+function crearLogrosBase(jugadorId) {
+    return [
+        { 
+            id: 1,
+            jugadorId, 
+            nombre: "🧑‍🍳 Primer Sandwich", 
+            descripcion: "Completa tu primer sandwich",
+            completado: false,
+            tipo: "cocina",
+            recompensa: "🥉",
+            icono: "🥪"
+        },
+        { 
+            id: 2,
+            jugadorId, 
+            nombre: "📚 Estudiante Aplicado", 
+            descripcion: "Completa una lección educativa",
+            completado: false,
+            tipo: "educacion",
+            recompensa: "🥈",
+            icono: "🧠"
+        },
+        { 
+            id: 3,
+            jugadorId, 
+            nombre: "🏛️ Explorador Académico", 
+            descripcion: "Descubre la biblioteca",
+            completado: false,
+            tipo: "exploracion",
+            recompensa: "🥉",
+            icono: "🏛️"
+        },
+        { 
+            id: 4,
+            jugadorId, 
+            nombre: "🏆 Campeón del Conocimiento", 
+            descripcion: "Completa un quiz exitosamente",
+            completado: false,
+            tipo: "educacion",
+            recompensa: "🥇",
+            icono: "🏆"
+        }
+    ];
+}
+
+// Ruta de prueba
+app.get('/', (req, res) => {
+    res.send('¡API de Logros y Misiones del Juego Roundy World!');
+});
+
+// Manejar rutas no encontradas
 app.use((req, res) => {
-  res.status(404).json({ error: 'Ruta no encontrada' });
+    res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-// 11. INICIAR EL SERVIDOR
 app.listen(PORT, () => {
-  console.log( `API escuchando en http://localhost:${PORT}`);
-  console.log( `Endpoints disponibles:`);
-  console.log(`   GET    /projects     - Ver todos los proyectos`);
-  console.log(`   GET    /projects/:id - Ver un proyecto específico`);
-  console.log(`   POST   /projects     - Crear un nuevo proyecto`);
-  console.log(`   PATCH  /projects/:id - Actualizar un proyecto`);
-  console.log(`   DELETE /projects/:id - Eliminar un proyecto`);
+    console.log(`🎮 API de Logros y Misiones escuchando en http://localhost:${PORT}`);
+    console.log(`Endpoints disponibles:`);
+    console.log(`   LOGROS:`);
+    console.log(`     GET    /logros/:jugadorId          - Logros del jugador`);
+    console.log(`     PATCH  /logros/:jugadorId/:logroId/completar - Completar logro`);
+    console.log(`   MISIONES:`);
+    console.log(`     GET    /misiones                   - Todas las misiones`);
+    console.log(`     PATCH  /misiones/:jugadorId/:misionId/progreso - Actualizar progreso`);
+    console.log(`   ESPECIALES:`);
+    console.log(`     GET    /estado/:jugadorId          - Estado completo`);
+    console.log(`     POST   /inicializar-jugador        - Inicializar jugador`);
 });
