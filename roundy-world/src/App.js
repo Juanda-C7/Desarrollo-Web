@@ -8,6 +8,8 @@ import { audioService } from "./services/audioService";
 export default function App() {
   const [step, setStep] = useState("login");
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
   const [color, setColor] = useState(null);
   const [showSandwichMinigame, setShowSandwichMinigame] = useState(false);
   const [showPressAHint, setShowPressAHint] = useState(false);
@@ -38,82 +40,140 @@ export default function App() {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
 
-  const API_BASE = "http://localhost:2001";
+  const MONGODB_API = "http://localhost:4001";
+  const ACHIEVEMENTS_API = "http://localhost:2001";
 
   // --------------------------- 
-  // REDIS: Recuperar sesión al hacer login
+  // MONGODB: Login y Registro
   // --------------------------- 
   const handleLogin = async () => {
-    if (!username) return;
+    if (!username || !password) {
+      alert("Por favor ingresa usuario y contraseña");
+      return;
+    }
+    
     try {
-      const res = await fetch(`http://localhost:4000/session/${username}`);
+      const res = await fetch(`${MONGODB_API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
       const data = await res.json();
-      if (data && Object.keys(data).length > 0) {
-        setColor(data.color ?? 0xff0000);
-        setMoney(data.money ?? 0);
-        setSandwichDone(data.sandwichDone ?? false);
-        setEducationalPoints(data.educationalPoints ?? 0);
+      
+      if (res.ok) {
+        // Guardar token en localStorage
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('username', username);
+        
+        setColor(data.user.color);
+        setMoney(data.user.money);
+        setSandwichDone(data.user.sandwichDone);
+        setEducationalPoints(data.user.educationalPoints);
+        if (data.user.trofeos) setTrofeos(data.user.trofeos);
         setStep("world");
+        
+        // Cargar logros y misiones
+        loadAchievementsData();
       } else {
-        setColor(0xff0000);
-        setMoney(0);
-        setSandwichDone(false);
-        setEducationalPoints(0);
-        setStep("customize");
+        alert(data.error || "Error en login");
       }
     } catch (err) {
-      console.error("❌ No se pudo recuperar sesión de Redis", err);
-      setColor(0xff0000);
-      setMoney(0);
-      setSandwichDone(false);
-      setEducationalPoints(0);
-      setStep("customize");
+      console.error("❌ Error en login:", err);
+      alert("Error de conexión con el servidor");
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!username || !password) {
+      alert("Por favor ingresa usuario y contraseña");
+      return;
+    }
+    
+    if (password.length < 3) {
+      alert("La contraseña debe tener al menos 3 caracteres");
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${MONGODB_API}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+      
+      if (res.ok) {
+        // Guardar token en localStorage
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('username', username);
+        
+        setColor(data.user.color);
+        setMoney(data.user.money);
+        setSandwichDone(data.user.sandwichDone);
+        setEducationalPoints(data.user.educationalPoints);
+        if (data.user.trofeos) setTrofeos(data.user.trofeos);
+        setStep("customize");
+        
+        // Inicializar sistema de logros
+        inicializarJugador();
+      } else {
+        alert(data.error || "Error en registro");
+      }
+    } catch (err) {
+      console.error("❌ Error en registro:", err);
+      alert("Error de conexión con el servidor");
     }
   };
 
   // --------------------------- 
-  // REDIS: Guardar sesión cuando cambien los datos
+  // MONGODB: Guardar datos automáticamente
   // --------------------------- 
   useEffect(() => {
-    if (
-      username &&
-      color !== null &&
-      money !== null &&
-      sandwichDone !== null &&
-      educationalPoints !== null
-    ) {
-      const sessionData = { 
-        color, 
-        money, 
-        sandwichDone, 
-        educationalPoints 
-      };
-      fetch("http://localhost:4000/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, data: sessionData }),
-      }).catch(() => console.log("❌ No se pudo guardar sesión en Redis"));
-    }
-  }, [username, color, money, sandwichDone, educationalPoints]);
+    const saveUserData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !username) return;
 
-  // ---------------------------
-  // CARGAR LOGROS Y MISIONES
-  // ---------------------------
-  useEffect(() => {
+      try {
+        await fetch(`${MONGODB_API}/user`, {
+          method: "PUT",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ 
+            color, 
+            money, 
+            sandwichDone, 
+            educationalPoints,
+            trofeos 
+          }),
+        });
+      } catch (error) {
+        console.error("❌ Error guardando datos:", error);
+      }
+    };
+
     if (username && step === "world") {
-      loadAchievementsData();
-      inicializarJugador();
+      saveUserData();
     }
-  }, [username, step]);
+  }, [username, color, money, sandwichDone, educationalPoints, trofeos, step]);
 
+  // ---------------------------
+  // SISTEMA DE LOGROS Y MISIONES
+  // ---------------------------
   const loadAchievementsData = async () => {
     try {
-      const response = await fetch(`${API_BASE}/estado/${username}`);
+      const response = await fetch(`${ACHIEVEMENTS_API}/estado/${username}`);
       const estado = await response.json();
       if (estado) {
         setLogros(estado.logros);
         setMisiones(estado.misiones);
         setTrofeos(estado.trofeos || { bronce: 0, plata: 0, oro: 0, total: 0 });
+        
+        // Sincronizar con MongoDB
+        syncAchievementsWithMongoDB(estado.trofeos);
       }
     } catch (error) {
       console.error("Error cargando logros y misiones:", error);
@@ -122,7 +182,7 @@ export default function App() {
 
   const inicializarJugador = async () => {
     try {
-      await fetch(`${API_BASE}/inicializar-jugador`, {
+      await fetch(`${ACHIEVEMENTS_API}/inicializar-jugador`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jugadorId: username }),
@@ -133,6 +193,33 @@ export default function App() {
       console.error("Error inicializando jugador:", error);
     }
   };
+
+  const syncAchievementsWithMongoDB = async (newTrofeos) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      await fetch(`${MONGODB_API}/sync-achievements`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          trofeos: newTrofeos || trofeos
+        }),
+      });
+    } catch (error) {
+      console.error("❌ Error sincronizando logros:", error);
+    }
+  };
+
+  // Cargar datos al entrar al mundo
+  useEffect(() => {
+    if (username && step === "world") {
+      loadAchievementsData();
+    }
+  }, [username, step]);
 
   const ingredients = [
     { name: "🥬 Lechuga", color: "#4caf50" },
@@ -156,7 +243,6 @@ export default function App() {
   const finishSandwich = async () => {
     setSandwichDone(true);
     setShowSandwichMinigame(false);
-    // SOLO 5 monedas por hacer sandwich (como antes)
     setMoney((prev) => prev + 5);
     audioService.playCoinSound();
     
@@ -166,7 +252,7 @@ export default function App() {
   const checkSandwichAchievements = async () => {
     try {
       // Misión 1: Chef Novato
-      const responseMision = await fetch(`${API_BASE}/misiones/${username}/1/progreso`, {
+      const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/1/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ incremento: 1 }),
@@ -180,7 +266,7 @@ export default function App() {
       // Logro 1: Primer Sandwich
       const logroSandwich = logros.find(l => l.nombre.includes("Sandwich"));
       if (logroSandwich && !logroSandwich.completado) {
-        const responseLogro = await fetch(`${API_BASE}/logros/${username}/${logroSandwich.id}/completar`, {
+        const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroSandwich.id}/completar`, {
           method: 'PATCH',
         });
         
@@ -206,7 +292,7 @@ export default function App() {
   const checkEducationAchievements = async () => {
     try {
       // Misión 2: Aprendiz del Saber
-      const responseMision = await fetch(`${API_BASE}/misiones/${username}/2/progreso`, {
+      const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/2/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ incremento: 1 }),
@@ -220,7 +306,7 @@ export default function App() {
       // Logro educativo
       const logroEducacion = logros.find(l => l.nombre.includes("Estudiante"));
       if (logroEducacion && !logroEducacion.completado) {
-        const responseLogro = await fetch(`${API_BASE}/logros/${username}/${logroEducacion.id}/completar`, {
+        const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroEducacion.id}/completar`, {
           method: 'PATCH',
         });
         
@@ -246,7 +332,7 @@ export default function App() {
   const checkQuizAchievements = async () => {
     try {
       // Misión 4: Maestro de Quizzes
-      const responseMision = await fetch(`${API_BASE}/misiones/${username}/4/progreso`, {
+      const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/4/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ incremento: 1 }),
@@ -260,7 +346,7 @@ export default function App() {
       // Logro de quiz
       const logroQuiz = logros.find(l => l.nombre.includes("Campeón") || l.nombre.includes("Conocimiento"));
       if (logroQuiz && !logroQuiz.completado) {
-        const responseLogro = await fetch(`${API_BASE}/logros/${username}/${logroQuiz.id}/completar`, {
+        const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroQuiz.id}/completar`, {
           method: 'PATCH',
         });
         
@@ -275,7 +361,6 @@ export default function App() {
     }
   };
 
-  // Nueva función para cuando el jugador entra a la biblioteca
   const handleEnterLibrary = () => {
     setCurrentMap("library");
     audioService.playSuccessSound();
@@ -285,7 +370,7 @@ export default function App() {
   const checkLibraryAchievements = async () => {
     try {
       // Misión 3: Explorador Académico
-      const responseMision = await fetch(`${API_BASE}/misiones/${username}/3/progreso`, {
+      const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/3/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ incremento: 1 }),
@@ -299,7 +384,7 @@ export default function App() {
       // Logro de exploración
       const logroExploracion = logros.find(l => l.nombre.includes("Explorador"));
       if (logroExploracion && !logroExploracion.completado) {
-        const responseLogro = await fetch(`${API_BASE}/logros/${username}/${logroExploracion.id}/completar`, {
+        const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroExploracion.id}/completar`, {
           method: 'PATCH',
         });
         
@@ -743,9 +828,9 @@ export default function App() {
           alignItems: "center",
         }}
       >
-        <h1>Roundy World - Login</h1>
+        <h1>Roundy World - {isRegistering ? "Registro" : "Login"}</h1>
         <input
-          placeholder="Ingresa tu nombre"
+          placeholder="Ingresa tu nombre de usuario"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           style={{
@@ -754,19 +839,48 @@ export default function App() {
             borderRadius: "8px",
             border: "2px solid #333",
             marginBottom: "10px",
+            width: "250px"
+          }}
+        />
+        <input
+          type="password"
+          placeholder="Ingresa tu contraseña"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{
+            padding: "10px",
+            fontSize: "16px",
+            borderRadius: "8px",
+            border: "2px solid #333",
+            marginBottom: "10px",
+            width: "250px"
           }}
         />
         <button
-          onClick={handleLogin}
-          disabled={!username}
+          onClick={isRegistering ? handleRegister : handleLogin}
+          disabled={!username || !password}
           style={{
             padding: "10px 20px",
             borderRadius: "8px",
             backgroundColor: "#333",
             color: "#fff",
+            marginBottom: "10px",
           }}
         >
-          Entrar
+          {isRegistering ? "Registrarse" : "Iniciar Sesión"}
+        </button>
+        
+        <button
+          onClick={() => setIsRegistering(!isRegistering)}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "8px",
+            backgroundColor: "transparent",
+            color: "#333",
+            border: "1px solid #333",
+          }}
+        >
+          {isRegistering ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
         </button>
       </div>
     );

@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "mongodb": "^6.20.0",
     "phaser": "^3.90.0",
     "tone": "^15.1.22"
   }
