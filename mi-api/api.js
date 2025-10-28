@@ -1,7 +1,7 @@
 // ========================================
 // API PARA LOGROS Y MISIONES DEL JUEGO ROUNDY WORLD
 // ========================================
-//Comentario
+//En esta carpeta se hicieron los cambios de entrega_10
 const express = require('express');
 const cors = require('cors');
 

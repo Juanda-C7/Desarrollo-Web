@@ -1,3 +1,5 @@
+//En esta carpeta se hicieron los cambios del entregable_9
+
 import React, { useState } from 'react';
 import { huggingService } from '../services/huggingService';
 import { audioService } from '../services/audioService';
