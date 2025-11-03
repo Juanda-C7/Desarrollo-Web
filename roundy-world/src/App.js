@@ -21,6 +21,7 @@ export default function App() {
   const [currentLesson, setCurrentLesson] = useState(null);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [showPressEHint, setShowPressEHint] = useState(false);
+  const [showSandwichMessage, setShowSandwichMessage] = useState(false); // NUEVO ESTADO
   
   // Nuevos estados para logros y misiones
   const [logros, setLogros] = useState([]);
@@ -241,12 +242,29 @@ export default function App() {
 
   // ---------- FUNCIONES DE LOGROS CON TROFEOS ----------
   const finishSandwich = async () => {
+    // Verificar que se hayan usado todos los ingredientes
+    const requiredIngredients = 4; // Lechuga, Tomate, Queso, Carne
+    const hasAllIngredients = sandwich.length === requiredIngredients;
+    
+    if (!hasAllIngredients) {
+      alert(`❌ Necesitas usar todos los ingredientes para completar el sandwich!\nTe faltan ${requiredIngredients - sandwich.length} ingredientes.`);
+      audioService.playErrorSound();
+      return;
+    }
+    
+    // CORRECCIÓN: sandwichDone se mantiene en true permanentemente
     setSandwichDone(true);
     setShowSandwichMinigame(false);
+    setShowSandwichMessage(true); // Mostrar mensaje
     setMoney((prev) => prev + 5);
     audioService.playCoinSound();
     
     await checkSandwichAchievements();
+  };
+
+  // Agregar función para resetear el sandwich
+  const resetSandwich = () => {
+    setSandwich([]);
   };
 
   const checkSandwichAchievements = async () => {
@@ -555,58 +573,78 @@ export default function App() {
         const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
         this.physics.add.existing(floor, true);
 
+        // Mejorar las paredes con mejores colisiones
         const walls = [
-          this.add.rectangle(400, 10, 800, 20, 0x000000, 0),
-          this.add.rectangle(400, 590, 800, 20, 0x000000, 0),
-          this.add.rectangle(10, 300, 20, 600, 0x000000, 0),
-          this.add.rectangle(790, 300, 20, 600, 0x000000, 0),
+          this.add.rectangle(400, 5, 800, 10, 0x000000, 0),   // Top
+          this.add.rectangle(400, 595, 800, 10, 0x000000, 0), // Bottom
+          this.add.rectangle(5, 300, 10, 600, 0x000000, 0),   // Left
+          this.add.rectangle(795, 300, 10, 600, 0x000000, 0), // Right
         ];
         walls.forEach((w) => this.physics.add.existing(w, true));
 
-        table = this.add.rectangle(400, 300, 220, 80, 0x000000, 0);
+        // Mesa - colisión más precisa
+        table = this.add.rectangle(400, 300, 240, 100, 0x000000, 0);
         this.physics.add.existing(table, true);
 
-        const chair1 = this.add.rectangle(330, 350, 30, 30, 0x000000, 0);
-        const chair2 = this.add.rectangle(470, 350, 30, 30, 0x000000, 0);
+        // Sillas - colisiones mejoradas
+        const chair1 = this.add.rectangle(330, 350, 35, 35, 0x000000, 0);
+        const chair2 = this.add.rectangle(470, 350, 35, 35, 0x000000, 0);
         this.physics.add.existing(chair1, true);
         this.physics.add.existing(chair2, true);
 
-        const stove = this.add.rectangle(90, 280, 140, 120, 0x000000, 0);
+        // CORRECCIÓN: Estufa con colisión normal - se puede pasar a los lados
+        const stove = this.add.rectangle(90, 280, 150, 130, 0x000000, 0);
         this.physics.add.existing(stove, true);
 
-        // Puerta biblioteca
-        const libraryDoor = this.add.rectangle(700, 200, 60, 80, 0x000000, 0);
+        // Puerta biblioteca - mejor colocación
+        const libraryDoor = this.add.rectangle(700, 200, 70, 90, 0x000000, 0);
         this.physics.add.existing(libraryDoor, true);
 
         // Puerta salida biblioteca
-        const exitDoor = this.add.rectangle(80, 340, 60, 80, 0x000000, 0);
+        const exitDoor = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
         this.physics.add.existing(exitDoor, true);
 
-        player = this.add.circle(50, 300, 18, 0xffffff, 0);
+        // Player con mejor configuración de física
+        player = this.add.circle(50, 300, 16, 0xffffff, 0);
         this.physics.add.existing(player);
-        player.body.setCollideWorldBounds(true);
-        player.body.setCircle(18);
-        player.body.setOffset(-18, -18);
+        player.body.setCollideWorldBounds(true, 1, 1, true);
+        player.body.setCircle(16);
+        player.body.setOffset(-16, -16);
+        
+        // Mejorar las propiedades físicas del jugador
+        player.body.setBounce(0.1, 0.1);
+        player.body.setDrag(800, 800);
+        player.body.setMaxVelocity(200, 200);
 
         const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor];
         obstacles.forEach((obs) => {
-          this.physics.add.collider(player, obs);
+          // Configurar colisiones más suaves
+          this.physics.add.collider(player, obs, null, null, this);
         });
 
+        // Signo de exclamación - MEJORAR VISIBILIDAD
         const exclamation = this.add
-          .text(table.x, table.y - 60, "!", {
-            font: "36px Arial",
-            fill: "#ff3333",
+          .text(table.x, table.y - 70, "!", {
+            font: "48px Arial",
+            fill: "#ff0000",
             fontStyle: "bold",
+            stroke: "#ffffff",
+            strokeThickness: 4
           })
-          .setOrigin(0.5, 0.5);
+          .setOrigin(0.5, 0.5)
+          .setDepth(1000); // Alto z-index para asegurar visibilidad
+        
         window.tableExclamation = exclamation;
 
         const librarySign = this.add
-          .text(libraryDoor.x, libraryDoor.y - 60, "📚", {
-            font: "24px Arial",
+          .text(libraryDoor.x, libraryDoor.y - 70, "📚", {
+            font: "32px Arial",
+            stroke: "#000000",
+            strokeThickness: 3
           })
-          .setOrigin(0.5, 0.5);
+          .setOrigin(0.5, 0.5)
+          .setDepth(1000);
+        
         window.librarySign = librarySign;
 
         cursors = this.input.keyboard.createCursorKeys();
@@ -622,19 +660,22 @@ export default function App() {
       function update() {
         if (!player || !cursors) return;
 
-        const speed = 160;
+        const speed = 180;
         player.body.setVelocity(0);
+        
+        // Movimiento más suave
         if (cursors.left.isDown) player.body.setVelocityX(-speed);
         if (cursors.right.isDown) player.body.setVelocityX(speed);
         if (cursors.up.isDown) player.body.setVelocityY(-speed);
         if (cursors.down.isDown) player.body.setVelocityY(speed);
 
-        // Interacción con mesa
+        // CORRECCIÓN: Interacción con mesa - SOLO si sandwich no está hecho
         const distToTable = Phaser.Math.Distance.Between(
           player.x, player.y, table.x, table.y
         );
-        if (distToTable < 70 && currentMap === "kitchen") {
+        if (distToTable < 90 && currentMap === "kitchen") {
           window.nearTable = true;
+          // CORRECCIÓN: Solo permitir abrir el minijuego si sandwichDone es false
           if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
             const ev = new CustomEvent("openSandwich");
             window.dispatchEvent(ev);
@@ -647,7 +688,7 @@ export default function App() {
         const distToLibrary = Phaser.Math.Distance.Between(
           player.x, player.y, 700, 200
         );
-        if (distToLibrary < 50 && currentMap === "kitchen") {
+        if (distToLibrary < 60 && currentMap === "kitchen") {
           window.nearLibraryDoor = true;
           if (Phaser.Input.Keyboard.JustDown(keyE)) {
             const ev = new CustomEvent("enterLibrary");
@@ -661,7 +702,7 @@ export default function App() {
         const distToExit = Phaser.Math.Distance.Between(
           player.x, player.y, 80, 340
         );
-        if (distToExit < 50 && currentMap === "library") {
+        if (distToExit < 60 && currentMap === "library") {
           window.nearExitDoor = true;
           if (Phaser.Input.Keyboard.JustDown(keyE)) {
             const ev = new CustomEvent("exitLibrary");
@@ -671,11 +712,23 @@ export default function App() {
           window.nearExitDoor = false;
         }
 
-        if (window.tableExclamation)
-          window.tableExclamation.setVisible(!sandwichDone && currentMap === "kitchen");
+        // Control de visibilidad del signo de exclamación
+        if (window.tableExclamation) {
+          // CORRECCIÓN: Solo mostrar si sandwich no está hecho
+          const shouldShow = !sandwichDone && currentMap === "kitchen";
+          window.tableExclamation.setVisible(shouldShow);
+          
+          // Efecto de animación parpadeante cuando está cerca
+          if (shouldShow && window.nearTable) {
+            window.tableExclamation.setScale(1 + Math.sin(this.time.now / 200) * 0.2);
+          } else {
+            window.tableExclamation.setScale(1);
+          }
+        }
         
-        if (window.librarySign)
+        if (window.librarySign) {
           window.librarySign.setVisible(currentMap === "kitchen");
+        }
       }
 
       phaserRef.current = new Phaser.Game(config);
@@ -711,12 +764,16 @@ export default function App() {
       rafRef.current = requestAnimationFrame(updateSvg);
 
       const openListener = () => {
-        setShowSandwichMinigame(true);
-        setShowPressAHint(false);
-        setSandwich([]);
+        // CORRECCIÓN: Solo abrir si sandwich no está hecho
+        if (!sandwichDone) {
+          setShowSandwichMinigame(true);
+          setShowPressAHint(false);
+          setSandwich([]);
+        }
       };
       
       const nearTableListener = (e) => {
+        // CORRECCIÓN: Solo mostrar hint si sandwich no está hecho
         setShowPressAHint(e.detail.near && !sandwichDone && currentMap === "kitchen");
       };
       
@@ -1174,6 +1231,7 @@ export default function App() {
         🏆 Trofeos ({trofeos.total})
       </button>
 
+      {/* CORRECCIÓN: Solo mostrar hint si sandwich no está hecho */}
       {showPressAHint && !showSandwichMinigame && !sandwichDone && currentMap === "kitchen" && (
         <div
           style={{
@@ -1208,7 +1266,8 @@ export default function App() {
         </div>
       )}
 
-      {sandwichDone && currentMap === "kitchen" && (
+      {/* CORRECCIÓN: Mensaje de sandwich completado - con estado separado para mostrar/ocultar */}
+      {showSandwichMessage && currentMap === "kitchen" && (
         <div
           style={{
             position: "absolute",
@@ -1217,11 +1276,35 @@ export default function App() {
             transform: "translateX(-50%)",
             background: "green",
             color: "#fff",
-            padding: "8px 12px",
+            padding: "12px 20px",
             borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+            zIndex: 100
           }}
         >
-          ✅ Ya hiciste un sándwich
+          <span>✅ ¡Sandwich completado! +5 monedas</span>
+          <button 
+            onClick={() => setShowSandwichMessage(false)} // CORRECCIÓN: Funciona correctamente
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              color: 'white',
+              borderRadius: '50%',
+              width: 24,
+              height: 24,
+              cursor: 'pointer',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Cerrar mensaje"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -1297,7 +1380,8 @@ export default function App() {
         </div>
       )}
 
-      {showSandwichMinigame && (
+      {/* Modal del sandwich - CORRECCIÓN: Solo mostrar si sandwich no está hecho */}
+      {showSandwichMinigame && !sandwichDone && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1312,122 +1396,207 @@ export default function App() {
         }}>
           <div
             style={{
-              width: 360,
+              width: 400,
               background: "#fff",
               border: "3px solid #333",
-              padding: 18,
+              padding: 20,
               borderRadius: 12,
+              position: 'relative'
             }}
           >
-            <h3 style={{ marginTop: 0 }}>🥪 Arma tu Sandwich</h3>
+            <h3 style={{ marginTop: 0, textAlign: 'center' }}>🥪 Arma tu Sandwich</h3>
+            
+            {/* Contador de ingredientes */}
+            <div style={{
+              textAlign: 'center',
+              marginBottom: 10,
+              padding: '5px 10px',
+              backgroundColor: sandwich.length === 4 ? '#4caf50' : '#ff9800',
+              color: 'white',
+              borderRadius: 20,
+              fontSize: 14,
+              fontWeight: 'bold'
+            }}>
+              Ingredientes: {sandwich.length}/4
+              {sandwich.length === 4 && ' ✅ Listo!'}
+            </div>
+            
             <div
               onDrop={onDrop}
               onDragOver={allowDrop}
               style={{
-                minHeight: 140,
+                minHeight: 160,
                 border: "2px dashed #ccc",
                 borderRadius: 10,
                 display: "flex",
                 flexDirection: "column-reverse",
                 alignItems: "center",
-                padding: 10,
+                padding: 15,
                 background: "#fbfbfb",
+                marginBottom: 15
               }}
             >
+              {/* Pan superior */}
               <div
                 style={{
-                  width: 140,
-                  height: 20,
+                  width: 160,
+                  height: 22,
                   background: "#deb887",
-                  borderRadius: 6,
-                  margin: "6px 0",
+                  borderRadius: "6px 6px 0 0",
+                  margin: "3px 0",
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}
               />
+              
               {sandwich.map((ing, i) => (
                 <div
                   key={i}
                   style={{
-                    width: 140,
-                    height: 18,
+                    width: 160,
+                    height: 20,
                     background: ing.color,
-                    borderRadius: 5,
-                    margin: "5px 0",
-                  }}
-                />
-              ))}
-              <div
-                style={{
-                  width: 140,
-                  height: 20,
-                  background: "#deb887",
-                  borderRadius: 6,
-                  margin: "6px 0",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              {ingredients.map((ing) => (
-                <div
-                  key={ing.name}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, ing)}
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 10,
-                    background: ing.color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 24,
-                    cursor: "grab",
+                    borderRadius: 4,
+                    margin: "4px 0",
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
                   }}
                   title={ing.name}
                 >
-                  {ing.name.split(" ")[0]}
+                  {ing.name.split(" ")[1]}
                 </div>
               ))}
+              
+              {/* Pan inferior */}
+              <div
+                style={{
+                  width: 160,
+                  height: 22,
+                  background: "#deb887",
+                  borderRadius: "0 0 6px 6px",
+                  margin: "3px 0",
+                  boxShadow: '0 -2px 4px rgba(0,0,0,0.1)'
+                }}
+              />
             </div>
+            
+            {/* Área de ingredientes */}
+            <div style={{ marginBottom: 15 }}>
+              <h4 style={{ margin: '0 0 10px 0', textAlign: 'center' }}>Ingredientes Disponibles</h4>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                }}
+              >
+                {ingredients.map((ing) => (
+                  <div
+                    key={ing.name}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, ing)}
+                    style={{
+                      width: 70,
+                      height: 70,
+                      borderRadius: 10,
+                      background: ing.color,
+                      display: "flex",
+                      flexDirection: 'column',
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 24,
+                      cursor: "grab",
+                      border: '2px solid #333',
+                      boxShadow: '0 3px 6px rgba(0,0,0,0.16)',
+                      transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    title={ing.name}
+                  >
+                    {ing.name.split(" ")[0]}
+                    <div style={{ fontSize: 10, color: 'white', marginTop: 2 }}>
+                      {ing.name.split(" ")[1]}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
             <div
               style={{
                 display: "flex",
                 justifyContent: "center",
                 gap: 10,
                 marginTop: 12,
+                flexWrap: 'wrap'
               }}
             >
               <button
                 onClick={finishSandwich}
+                disabled={sandwich.length !== 4}
                 style={{
-                  padding: "8px 12px",
-                  background: "#4caf50",
+                  padding: "10px 20px",
+                  background: sandwich.length === 4 ? "#4caf50" : "#ccc",
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
+                  cursor: sandwich.length === 4 ? "pointer" : "not-allowed",
+                  fontWeight: 'bold',
+                  minWidth: 140
                 }}
               >
-                Terminar Sandwich
+                {sandwich.length === 4 ? "✅ Terminar Sandwich" : "Completar Ingredientes"}
               </button>
+              
+              <button
+                onClick={resetSandwich}
+                style={{
+                  padding: "10px 15px",
+                  background: "#ff9800",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer"
+                }}
+              >
+                🔄 Reiniciar
+              </button>
+              
               <button
                 onClick={() => {
                   setShowSandwichMinigame(false);
+                  resetSandwich();
                 }}
                 style={{
-                  padding: "8px 12px",
-                  background: "#ccc",
+                  padding: "10px 15px",
+                  background: "#f44336",
+                  color: "#fff",
                   border: "none",
                   borderRadius: 8,
+                  cursor: "pointer"
                 }}
               >
-                Cancelar
+                ❌ Cancelar
               </button>
+            </div>
+            
+            {/* Instrucciones */}
+            <div style={{
+              marginTop: 15,
+              padding: 10,
+              background: '#e3f2fd',
+              borderRadius: 8,
+              fontSize: 12,
+              textAlign: 'center'
+            }}>
+              💡 <strong>Instrucciones:</strong> Arrastra todos los ingredientes al sandwich
             </div>
           </div>
         </div>

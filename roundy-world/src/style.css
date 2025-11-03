@@ -1,0 +1,134 @@
+/* styles.css - Estilos adicionales para mejoras visuales */
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.pulse-animation {
+  animation: pulse 1s infinite;
+}
+
+/* Mejorar la visualización del jugador SVG */
+#svg-player {
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  transition: transform 0.1s ease;
+}
+
+/* Efecto de arrastre para ingredientes */
+.dragging {
+  opacity: 0.7;
+  transform: scale(0.9);
+  cursor: grabbing !important;
+}
+
+/* Estilos para el signo de exclamación mejorado */
+.exclamation-improved {
+  font-size: 48px !important;
+  font-weight: bold !important;
+  text-shadow: 
+    2px 2px 0 #fff,
+    -2px -2px 0 #fff,
+    2px -2px 0 #fff,
+    -2px 2px 0 #fff,
+    0 0 10px rgba(255,255,255,0.8);
+  animation: pulse 1.5s infinite;
+}
+
+/* Mejoras para el modal del sandwich */
+.sandwich-ingredient {
+  transition: all 0.3s ease;
+  cursor: grab;
+}
+
+.sandwich-ingredient:hover {
+  transform: scale(1.05);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.sandwich-ingredient:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+/* Área de drop con mejor feedback */
+.sandwich-drop-zone {
+  transition: all 0.3s ease;
+  border: 2px dashed #ccc;
+}
+
+.sandwich-drop-zone.drag-over {
+  border-color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+/* Botones mejorados */
+.improved-button {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.improved-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.improved-button:active {
+  transform: translateY(0);
+}
+
+/* Mensajes de feedback */
+.feedback-message {
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mejoras de colisiones visuales */
+.collision-debug {
+  border: 1px solid red !important;
+  background-color: rgba(255,0,0,0.1) !important;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  #phaser-wrapper {
+    transform: scale(0.8);
+    transform-origin: top center;
+  }
+  
+  .sandwich-modal {
+    width: 90% !important;
+    max-width: 350px !important;
+  }
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
