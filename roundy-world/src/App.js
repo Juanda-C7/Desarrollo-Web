@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Phaser from "phaser";
 import p5 from "p5";
+import io from "socket.io-client";
 import EducationalGame from "./components/EducationalGame";
 import QuizComponent from "./components/QuizComponent";
 import { audioService } from "./services/audioService";
@@ -21,9 +22,10 @@ export default function App() {
   const [currentLesson, setCurrentLesson] = useState(null);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [showPressEHint, setShowPressEHint] = useState(false);
-  const [showSandwichMessage, setShowSandwichMessage] = useState(false); // NUEVO ESTADO
+  const [showSandwichMessage, setShowSandwichMessage] = useState(false);
+  const [nearExitDoor, setNearExitDoor] = useState(false);
   
-  // Nuevos estados para logros y misiones
+  // Nuevos estados para logros, misiones y multijugador
   const [logros, setLogros] = useState([]);
   const [misiones, setMisiones] = useState([]);
   const [showAchievements, setShowAchievements] = useState(false);
@@ -34,6 +36,14 @@ export default function App() {
     total: 0
   });
 
+  // Estados para multijugador y chat
+  const [socket, setSocket] = useState(null);
+  const [otherPlayers, setOtherPlayers] = useState({});
+  const [chatMessage, setChatMessage] = useState("");
+  const [showChat, setShowChat] = useState(true);
+  const [socketStatus, setSocketStatus] = useState("disconnected");
+  const [serverIP, setServerIP] = useState("localhost");
+
   const phaserRef = useRef(null);
   const p5Ref = useRef(null);
   const svgRef = useRef(null);
@@ -43,6 +53,132 @@ export default function App() {
 
   const MONGODB_API = "http://localhost:4001";
   const ACHIEVEMENTS_API = "http://localhost:2001";
+
+  // Obtener IP del servidor desde parámetros URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const serverParam = urlParams.get('server');
+    if (serverParam) {
+      setServerIP(serverParam);
+      console.log(`🌐 Servidor configurado desde URL: ${serverParam}`);
+    }
+  }, []);
+
+  const SOCKET_API = `http://${serverIP}:4002`;
+
+  // --------------------------- 
+  // CONEXIÓN SOCKET PARA MULTIJUGADOR - CON PARÁMETROS URL
+  // --------------------------- 
+  useEffect(() => {
+    if (step === "world" && username) {
+      console.log(`🔗 Conectando a servidor Socket.io: ${SOCKET_API}`);
+      
+      const newSocket = io(SOCKET_API, {
+        timeout: 10000,
+        reconnectionAttempts: 5,
+        transports: ['websocket', 'polling']
+      });
+      setSocket(newSocket);
+
+      newSocket.on("connect", () => {
+        console.log("✅ Conectado al servidor Socket.io");
+        setSocketStatus("connected");
+        
+        // Unirse al juego
+        newSocket.emit("join-game", {
+          username,
+          color,
+          x: 50,
+          y: 300,
+          currentMap
+        });
+      });
+
+      newSocket.on("disconnect", () => {
+        console.log("❌ Desconectado del servidor Socket.io");
+        setSocketStatus("disconnected");
+      });
+
+      newSocket.on("connect_error", (error) => {
+        console.error("❌ Error conectando al servidor:", error);
+        setSocketStatus("error");
+        alert(`No se pudo conectar al servidor: ${serverIP}:4002\n\nAsegúrate de que:\n1. El servidor esté ejecutándose\n2. La IP sea correcta\n3. Estén en la misma red`);
+      });
+
+      // Escuchar jugadores actuales
+      newSocket.on("current-players", (players) => {
+        console.log("🎮 Jugadores actuales recibidos:", players.length);
+        const playersMap = {};
+        players.forEach(player => {
+          playersMap[player.id] = player;
+        });
+        setOtherPlayers(playersMap);
+      });
+
+      // Jugador nuevo
+      newSocket.on("player-joined", (player) => {
+        console.log("🆕 Jugador unido:", player.username);
+        setOtherPlayers(prev => ({ ...prev, [player.id]: player }));
+      });
+
+      // Jugador se movió
+      newSocket.on("player-moved", (data) => {
+        setOtherPlayers(prev => ({
+          ...prev,
+          [data.id]: {
+            ...prev[data.id],
+            x: data.x,
+            y: data.y,
+            currentMap: data.currentMap
+          }
+        }));
+      });
+
+      // Mensaje de chat
+      newSocket.on("player-message", (data) => {
+        setOtherPlayers(prev => ({
+          ...prev,
+          [data.id]: {
+            ...prev[data.id],
+            message: data.message,
+            messageTimestamp: data.timestamp
+          }
+        }));
+      });
+
+      // Jugador salió
+      newSocket.on("player-left", (playerId) => {
+        console.log("👋 Jugador salió:", playerId);
+        setOtherPlayers(prev => {
+          const newPlayers = { ...prev };
+          delete newPlayers[playerId];
+          return newPlayers;
+        });
+      });
+
+      return () => {
+        newSocket.close();
+        setSocketStatus("disconnected");
+      };
+    }
+  }, [step, username, color, currentMap, serverIP]);
+
+  // Debug: Verificar datos de otros jugadores
+  useEffect(() => {
+    if (Object.keys(otherPlayers).length > 0) {
+      console.log("🔍 DEBUG - Otros jugadores:", otherPlayers);
+      Object.values(otherPlayers).forEach(player => {
+        if (player.currentMap === currentMap) {
+          console.log(`👤 ${player.username} en mapa:`, {
+            x: player.x,
+            y: player.y, 
+            map: player.currentMap,
+            shouldRender: true
+          });
+        }
+      });
+    }
+  }, [otherPlayers, currentMap]);
 
   // --------------------------- 
   // MONGODB: Login y Registro
@@ -63,7 +199,6 @@ export default function App() {
       const data = await res.json();
       
       if (res.ok) {
-        // Guardar token en localStorage
         localStorage.setItem('token', data.token);
         localStorage.setItem('username', username);
         
@@ -74,7 +209,6 @@ export default function App() {
         if (data.user.trofeos) setTrofeos(data.user.trofeos);
         setStep("world");
         
-        // Cargar logros y misiones
         loadAchievementsData();
       } else {
         alert(data.error || "Error en login");
@@ -106,7 +240,6 @@ export default function App() {
       const data = await res.json();
       
       if (res.ok) {
-        // Guardar token en localStorage
         localStorage.setItem('token', data.token);
         localStorage.setItem('username', username);
         
@@ -117,7 +250,6 @@ export default function App() {
         if (data.user.trofeos) setTrofeos(data.user.trofeos);
         setStep("customize");
         
-        // Inicializar sistema de logros
         inicializarJugador();
       } else {
         alert(data.error || "Error en registro");
@@ -173,7 +305,6 @@ export default function App() {
         setMisiones(estado.misiones);
         setTrofeos(estado.trofeos || { bronce: 0, plata: 0, oro: 0, total: 0 });
         
-        // Sincronizar con MongoDB
         syncAchievementsWithMongoDB(estado.trofeos);
       }
     } catch (error) {
@@ -188,7 +319,6 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jugadorId: username }),
       });
-      // Recargar datos después de inicializar
       loadAchievementsData();
     } catch (error) {
       console.error("Error inicializando jugador:", error);
@@ -222,6 +352,19 @@ export default function App() {
     }
   }, [username, step]);
 
+  // ---------------------------
+  // SISTEMA DE CHAT MEJORADO
+  // ---------------------------
+  const sendMessage = () => {
+    if (chatMessage.trim() && socket) {
+      socket.emit("send-message", chatMessage);
+      setChatMessage("");
+    }
+  };
+
+  // ---------------------------
+  // INGREDIENTES Y COLORES
+  // ---------------------------
   const ingredients = [
     { name: "🥬 Lechuga", color: "#4caf50" },
     { name: "🍅 Tomate", color: "#e74c3c" },
@@ -240,10 +383,134 @@ export default function App() {
 
   const numToCssHex = (num) => "#" + num.toString(16).padStart(6, "0");
 
-  // ---------- FUNCIONES DE LOGROS CON TROFEOS ----------
+  // ---------------------------
+  // FUNCIONES DE NAVEGACIÓN
+  // ---------------------------
+  const handleEnterLibrary = () => {
+    setCurrentMap("library");
+    audioService.playSuccessSound();
+    checkLibraryAchievements();
+  };
+
+  const handleEnterSocratic = () => {
+    setCurrentMap("socratic");
+    audioService.playSuccessSound();
+  };
+
+  const handleExitSocratic = () => {
+    setCurrentMap("kitchen");
+    audioService.playSuccessSound();
+  };
+
+  // ---------------------------
+  // RENDERIZAR OTROS JUGADORES - VERSIÓN CORREGIDA
+  // ---------------------------
+  const renderOtherPlayers = () => {
+    const currentPlayers = Object.values(otherPlayers)
+      .filter(player => player.currentMap === currentMap && player.id !== socket?.id);
+  
+    console.log(`🎯 Renderizando ${currentPlayers.length} jugadores en ${currentMap}`, currentPlayers);
+
+    return currentPlayers.map(player => {
+      // Asegurarnos de que las coordenadas sean números válidos
+      const playerX = Number(player.x) || 100;
+      const playerY = Number(player.y) || 100;
+
+      return (
+        <div
+          key={player.id}
+          className="other-player"
+          style={{
+            position: 'absolute',
+            left: playerX,
+            top: playerY,
+            transform: 'translate(-50%, -50%)',
+            zIndex: 2,
+            pointerEvents: 'none'
+          }}
+        >
+          {/* Avatar del jugador */}
+          <svg viewBox="0 0 100 100" width="48" height="48">
+            <defs>
+              <filter id={`otherPlayerShadow-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.3" />
+              </filter>
+            </defs>
+            <g id="body">
+              <circle
+                cx="50"
+                cy="44"
+                r="20"
+                fill={numToCssHex(player.color)}
+                stroke="#111"
+                strokeWidth="1.5"
+                filter={`url(#otherPlayerShadow-${player.id})`}
+              />
+              <g id="eyes">
+                <circle cx="42" cy="40" r="3" fill="#000" />
+                <circle cx="58" cy="40" r="3" fill="#000" />
+              </g>
+              <path
+                d="M40 52 Q50 58 60 52"
+                stroke="#111"
+                strokeWidth="1.5"
+                fill="none"
+                strokeLinecap="round"
+              />
+            </g>
+          </svg>
+          
+          {/* Nombre de usuario */}
+          <div style={{
+            position: 'absolute',
+            top: '-35px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            padding: '4px 12px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            whiteSpace: 'nowrap',
+            fontWeight: 'bold',
+            zIndex: 10,
+            border: '1px solid rgba(255,255,255,0.3)',
+            minWidth: '60px',
+            textAlign: 'center'
+          }}>
+            {player.username}
+          </div>
+          
+          {/* Mensaje de chat */}
+          {player.message && Date.now() - player.messageTimestamp < 5000 && (
+            <div style={{
+              position: 'absolute',
+              top: '-65px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(255,255,255,0.98)',
+              color: '#333',
+              padding: '8px 12px',
+              borderRadius: '15px',
+              fontSize: '12px',
+              maxWidth: '200px',
+              wordWrap: 'break-word',
+              border: '2px solid #4CAF50',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              zIndex: 11,
+              fontFamily: 'Arial, sans-serif'
+            }}>
+              {player.message}
+            </div>
+          )}
+        </div>
+      );
+    });
+  };
+
+  // ---------- FUNCIONES DE LOGROS ----------
   const finishSandwich = async () => {
-    // Verificar que se hayan usado todos los ingredientes
-    const requiredIngredients = 4; // Lechuga, Tomate, Queso, Carne
+    const requiredIngredients = 4;
     const hasAllIngredients = sandwich.length === requiredIngredients;
     
     if (!hasAllIngredients) {
@@ -252,24 +519,21 @@ export default function App() {
       return;
     }
     
-    // CORRECCIÓN: sandwichDone se mantiene en true permanentemente
     setSandwichDone(true);
     setShowSandwichMinigame(false);
-    setShowSandwichMessage(true); // Mostrar mensaje
+    setShowSandwichMessage(true);
     setMoney((prev) => prev + 5);
     audioService.playCoinSound();
     
     await checkSandwichAchievements();
   };
 
-  // Agregar función para resetear el sandwich
   const resetSandwich = () => {
     setSandwich([]);
   };
 
   const checkSandwichAchievements = async () => {
     try {
-      // Misión 1: Chef Novato
       const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/1/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -281,7 +545,6 @@ export default function App() {
         audioService.playSuccessSound();
       }
 
-      // Logro 1: Primer Sandwich
       const logroSandwich = logros.find(l => l.nombre.includes("Sandwich"));
       if (logroSandwich && !logroSandwich.completado) {
         const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroSandwich.id}/completar`, {
@@ -291,7 +554,7 @@ export default function App() {
         const logroCompletado = await responseLogro.json();
         if (logroCompletado) {
           audioService.playSuccessSound();
-          loadAchievementsData(); // Recargar para actualizar trofeos
+          loadAchievementsData();
         }
       }
     } catch (error) {
@@ -303,13 +566,11 @@ export default function App() {
     setEducationalPoints(prev => prev + points);
     setCurrentLesson(null);
     audioService.playSuccessSound();
-    
     await checkEducationAchievements();
   };
 
   const checkEducationAchievements = async () => {
     try {
-      // Misión 2: Aprendiz del Saber
       const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/2/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -321,7 +582,6 @@ export default function App() {
         audioService.playSuccessSound();
       }
 
-      // Logro educativo
       const logroEducacion = logros.find(l => l.nombre.includes("Estudiante"));
       if (logroEducacion && !logroEducacion.completado) {
         const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroEducacion.id}/completar`, {
@@ -331,7 +591,7 @@ export default function App() {
         const logroCompletado = await responseLogro.json();
         if (logroCompletado) {
           audioService.playSuccessSound();
-          loadAchievementsData(); // Recargar para actualizar trofeos
+          loadAchievementsData();
         }
       }
     } catch (error) {
@@ -343,13 +603,11 @@ export default function App() {
     setEducationalPoints(prev => prev + points);
     setCurrentQuiz(null);
     audioService.playSuccessSound();
-    
     await checkQuizAchievements();
   };
 
   const checkQuizAchievements = async () => {
     try {
-      // Misión 4: Maestro de Quizzes
       const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/4/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -361,7 +619,6 @@ export default function App() {
         audioService.playSuccessSound();
       }
 
-      // Logro de quiz
       const logroQuiz = logros.find(l => l.nombre.includes("Campeón") || l.nombre.includes("Conocimiento"));
       if (logroQuiz && !logroQuiz.completado) {
         const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroQuiz.id}/completar`, {
@@ -371,7 +628,7 @@ export default function App() {
         const logroCompletado = await responseLogro.json();
         if (logroCompletado) {
           audioService.playSuccessSound();
-          loadAchievementsData(); // Recargar para actualizar trofeos
+          loadAchievementsData();
         }
       }
     } catch (error) {
@@ -379,15 +636,8 @@ export default function App() {
     }
   };
 
-  const handleEnterLibrary = () => {
-    setCurrentMap("library");
-    audioService.playSuccessSound();
-    checkLibraryAchievements();
-  };
-
   const checkLibraryAchievements = async () => {
     try {
-      // Misión 3: Explorador Académico
       const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/3/progreso`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -399,7 +649,6 @@ export default function App() {
         audioService.playSuccessSound();
       }
 
-      // Logro de exploración
       const logroExploracion = logros.find(l => l.nombre.includes("Explorador"));
       if (logroExploracion && !logroExploracion.completado) {
         const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroExploracion.id}/completar`, {
@@ -409,7 +658,7 @@ export default function App() {
         const logroCompletado = await responseLogro.json();
         if (logroCompletado) {
           audioService.playSuccessSound();
-          loadAchievementsData(); // Recargar para actualizar trofeos
+          loadAchievementsData();
         }
       }
     } catch (error) {
@@ -417,7 +666,7 @@ export default function App() {
     }
   };
 
-  // ---------- INITIALIZE p5 + Phaser when entering world ----------
+  // ---------- INITIALIZE p5 + Phaser ----------
   useEffect(() => {
     if (step === "world" && !phaserRef.current) {
       // --- p5 sketch ---
@@ -501,6 +750,14 @@ export default function App() {
             s.rect(730, 200, 8, 4);
             s.pop();
 
+            // Puerta Salón Socrático
+            s.push();
+            s.fill("#8B4513");
+            s.rect(100, 160, 60, 80, 5);
+            s.fill("#654321");
+            s.rect(130, 200, 8, 4);
+            s.pop();
+
           } else if (currentMap === "library") {
             // Biblioteca
             s.background("#2c3e50");
@@ -542,6 +799,49 @@ export default function App() {
             s.fill("#fff");
             s.textSize(12);
             s.text("Salir", 80, 340);
+          } else if (currentMap === "socratic") {
+            // SALÓN SOCRÁTICO - AIRE LIBRE
+            s.background("#87CEEB");
+            s.fill("#7CFC00");
+            s.rect(0, 400, 800, 200);
+            
+            // Estatuas de Sócrates
+            s.fill("#C0C0C0");
+            s.rect(200, 300, 40, 100);
+            s.ellipse(220, 250, 50, 50);
+            s.fill("#666");
+            s.rect(195, 320, 10, 30);
+            s.rect(235, 320, 10, 30);
+            s.fill("#555");
+            s.rect(180, 400, 80, 20);
+            s.fill("#333");
+            s.textSize(12);
+            s.text("SÓCRATES", 190, 390);
+            
+            // Bancas para conversación
+            s.fill("#8B4513");
+            s.rect(400, 350, 200, 20);
+            s.rect(350, 350, 20, 60);
+            s.rect(630, 350, 20, 60);
+            
+            // Árboles
+            s.fill("#8B4513");
+            s.rect(600, 250, 30, 150);
+            s.fill("#228B22");
+            s.ellipse(615, 200, 100, 100);
+            
+            // Fuente
+            s.fill("#B0E0E6");
+            s.ellipse(500, 500, 80, 30);
+            s.fill("#87CEEB");
+            s.ellipse(500, 480, 50, 20);
+            
+            // Puerta de regreso a cocina
+            s.fill("#8B4513");
+            s.rect(50, 300, 60, 80, 5);
+            s.fill("#fff");
+            s.textSize(12);
+            s.text("Cocina", 80, 340);
           }
         };
       };
@@ -566,6 +866,7 @@ export default function App() {
       let cursors;
       let table;
       let keyA, keyE;
+      let lastSentPosition = { x: 0, y: 0 };
 
       function preload() {}
 
@@ -573,56 +874,51 @@ export default function App() {
         const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
         this.physics.add.existing(floor, true);
 
-        // Mejorar las paredes con mejores colisiones
         const walls = [
-          this.add.rectangle(400, 5, 800, 10, 0x000000, 0),   // Top
-          this.add.rectangle(400, 595, 800, 10, 0x000000, 0), // Bottom
-          this.add.rectangle(5, 300, 10, 600, 0x000000, 0),   // Left
-          this.add.rectangle(795, 300, 10, 600, 0x000000, 0), // Right
+          this.add.rectangle(400, 5, 800, 10, 0x000000, 0),
+          this.add.rectangle(400, 595, 800, 10, 0x000000, 0),
+          this.add.rectangle(5, 300, 10, 600, 0x000000, 0),
+          this.add.rectangle(795, 300, 10, 600, 0x000000, 0),
         ];
         walls.forEach((w) => this.physics.add.existing(w, true));
 
-        // Mesa - colisión más precisa
         table = this.add.rectangle(400, 300, 240, 100, 0x000000, 0);
         this.physics.add.existing(table, true);
 
-        // Sillas - colisiones mejoradas
         const chair1 = this.add.rectangle(330, 350, 35, 35, 0x000000, 0);
         const chair2 = this.add.rectangle(470, 350, 35, 35, 0x000000, 0);
         this.physics.add.existing(chair1, true);
         this.physics.add.existing(chair2, true);
 
-        // CORRECCIÓN: Estufa con colisión normal - se puede pasar a los lados
         const stove = this.add.rectangle(90, 280, 150, 130, 0x000000, 0);
         this.physics.add.existing(stove, true);
 
-        // Puerta biblioteca - mejor colocación
         const libraryDoor = this.add.rectangle(700, 200, 70, 90, 0x000000, 0);
         this.physics.add.existing(libraryDoor, true);
 
-        // Puerta salida biblioteca
+        const socraticDoor = this.add.rectangle(100, 200, 70, 90, 0x000000, 0);
+        this.physics.add.existing(socraticDoor, true);
+
         const exitDoor = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
         this.physics.add.existing(exitDoor, true);
 
-        // Player con mejor configuración de física
+        const socraticExit = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
+        this.physics.add.existing(socraticExit, true);
+
         player = this.add.circle(50, 300, 16, 0xffffff, 0);
         this.physics.add.existing(player);
         player.body.setCollideWorldBounds(true, 1, 1, true);
         player.body.setCircle(16);
         player.body.setOffset(-16, -16);
-        
-        // Mejorar las propiedades físicas del jugador
         player.body.setBounce(0.1, 0.1);
         player.body.setDrag(800, 800);
         player.body.setMaxVelocity(200, 200);
 
-        const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor];
+        const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor, socraticDoor, socraticExit];
         obstacles.forEach((obs) => {
-          // Configurar colisiones más suaves
           this.physics.add.collider(player, obs, null, null, this);
         });
 
-        // Signo de exclamación - MEJORAR VISIBILIDAD
         const exclamation = this.add
           .text(table.x, table.y - 70, "!", {
             font: "48px Arial",
@@ -632,7 +928,7 @@ export default function App() {
             strokeThickness: 4
           })
           .setOrigin(0.5, 0.5)
-          .setDepth(1000); // Alto z-index para asegurar visibilidad
+          .setDepth(1000);
         
         window.tableExclamation = exclamation;
 
@@ -646,6 +942,17 @@ export default function App() {
           .setDepth(1000);
         
         window.librarySign = librarySign;
+
+        const socraticSign = this.add
+          .text(socraticDoor.x, socraticDoor.y - 70, "🏛️", {
+            font: "32px Arial",
+            stroke: "#000000",
+            strokeThickness: 3
+          })
+          .setOrigin(0.5, 0.5)
+          .setDepth(1000);
+        
+        window.socraticSign = socraticSign;
 
         cursors = this.input.keyboard.createCursorKeys();
         keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
@@ -663,19 +970,17 @@ export default function App() {
         const speed = 180;
         player.body.setVelocity(0);
         
-        // Movimiento más suave
         if (cursors.left.isDown) player.body.setVelocityX(-speed);
         if (cursors.right.isDown) player.body.setVelocityX(speed);
         if (cursors.up.isDown) player.body.setVelocityY(-speed);
         if (cursors.down.isDown) player.body.setVelocityY(speed);
 
-        // CORRECCIÓN: Interacción con mesa - SOLO si sandwich no está hecho
+        // Interacción con mesa
         const distToTable = Phaser.Math.Distance.Between(
           player.x, player.y, table.x, table.y
         );
         if (distToTable < 90 && currentMap === "kitchen") {
           window.nearTable = true;
-          // CORRECCIÓN: Solo permitir abrir el minijuego si sandwichDone es false
           if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
             const ev = new CustomEvent("openSandwich");
             window.dispatchEvent(ev);
@@ -698,11 +1003,25 @@ export default function App() {
           window.nearLibraryDoor = false;
         }
 
+        // Interacción con puerta Salón Socrático
+        const distToSocratic = Phaser.Math.Distance.Between(
+          player.x, player.y, 100, 200
+        );
+        if (distToSocratic < 60 && currentMap === "kitchen") {
+          window.nearSocraticDoor = true;
+          if (Phaser.Input.Keyboard.JustDown(keyE)) {
+            const ev = new CustomEvent("enterSocratic");
+            window.dispatchEvent(ev);
+          }
+        } else {
+          window.nearSocraticDoor = false;
+        }
+
         // Interacción con puerta salida
         const distToExit = Phaser.Math.Distance.Between(
           player.x, player.y, 80, 340
         );
-        if (distToExit < 60 && currentMap === "library") {
+        if (distToExit < 60 && (currentMap === "library" || currentMap === "socratic")) {
           window.nearExitDoor = true;
           if (Phaser.Input.Keyboard.JustDown(keyE)) {
             const ev = new CustomEvent("exitLibrary");
@@ -712,13 +1031,26 @@ export default function App() {
           window.nearExitDoor = false;
         }
 
+        // Enviar posición al servidor SOLO si cambió significativamente
+        const currentPos = { x: Math.round(player.x), y: Math.round(player.y) };
+        const distance = Phaser.Math.Distance.Between(
+          lastSentPosition.x, lastSentPosition.y, currentPos.x, currentPos.y
+        );
+
+        if (distance > 5 && socket) {
+          socket.emit("player-move", {
+            x: currentPos.x,
+            y: currentPos.y,
+            currentMap: currentMap
+          });
+          lastSentPosition = currentPos;
+        }
+
         // Control de visibilidad del signo de exclamación
         if (window.tableExclamation) {
-          // CORRECCIÓN: Solo mostrar si sandwich no está hecho
           const shouldShow = !sandwichDone && currentMap === "kitchen";
           window.tableExclamation.setVisible(shouldShow);
           
-          // Efecto de animación parpadeante cuando está cerca
           if (shouldShow && window.nearTable) {
             window.tableExclamation.setScale(1 + Math.sin(this.time.now / 200) * 0.2);
           } else {
@@ -728,6 +1060,10 @@ export default function App() {
         
         if (window.librarySign) {
           window.librarySign.setVisible(currentMap === "kitchen");
+        }
+        
+        if (window.socraticSign) {
+          window.socraticSign.setVisible(currentMap === "kitchen");
         }
       }
 
@@ -748,15 +1084,18 @@ export default function App() {
 
             const nearTable = !!window.nearTable;
             const nearLibrary = !!window.nearLibraryDoor;
+            const nearSocratic = !!window.nearSocraticDoor;
             const nearExit = !!window.nearExitDoor;
             
             const ev1 = new CustomEvent("nearTableUpdate", { detail: { near: nearTable } });
             const ev2 = new CustomEvent("nearLibraryUpdate", { detail: { near: nearLibrary } });
-            const ev3 = new CustomEvent("nearExitUpdate", { detail: { near: nearExit } });
+            const ev3 = new CustomEvent("nearSocraticUpdate", { detail: { near: nearSocratic } });
+            const ev4 = new CustomEvent("nearExitUpdate", { detail: { near: nearExit } });
             
             window.dispatchEvent(ev1);
             window.dispatchEvent(ev2);
             window.dispatchEvent(ev3);
+            window.dispatchEvent(ev4);
           }
         } catch (err) {}
         rafRef.current = requestAnimationFrame(updateSvg);
@@ -764,7 +1103,6 @@ export default function App() {
       rafRef.current = requestAnimationFrame(updateSvg);
 
       const openListener = () => {
-        // CORRECCIÓN: Solo abrir si sandwich no está hecho
         if (!sandwichDone) {
           setShowSandwichMinigame(true);
           setShowPressAHint(false);
@@ -773,7 +1111,6 @@ export default function App() {
       };
       
       const nearTableListener = (e) => {
-        // CORRECCIÓN: Solo mostrar hint si sandwich no está hecho
         setShowPressAHint(e.detail.near && !sandwichDone && currentMap === "kitchen");
       };
       
@@ -781,8 +1118,16 @@ export default function App() {
         setShowPressEHint(e.detail.near && currentMap === "kitchen");
       };
       
+      const nearSocraticListener = (e) => {
+        setShowPressEHint(e.detail.near && currentMap === "kitchen");
+      };
+      
       const enterLibraryListener = () => {
         handleEnterLibrary();
+      };
+      
+      const enterSocraticListener = () => {
+        handleEnterSocratic();
       };
       
       const exitLibraryListener = () => {
@@ -790,18 +1135,34 @@ export default function App() {
         audioService.playSuccessSound();
       };
 
+      const exitSocraticListener = () => {
+        handleExitSocratic();
+      };
+
+      const nearExitListener = (e) => {
+        setNearExitDoor(e.detail.near);
+      };
+
       window.addEventListener("openSandwich", openListener);
       window.addEventListener("nearTableUpdate", nearTableListener);
       window.addEventListener("nearLibraryUpdate", nearLibraryListener);
+      window.addEventListener("nearSocraticUpdate", nearSocraticListener);
       window.addEventListener("enterLibrary", enterLibraryListener);
+      window.addEventListener("enterSocratic", enterSocraticListener);
       window.addEventListener("exitLibrary", exitLibraryListener);
+      window.addEventListener("exitSocratic", exitSocraticListener);
+      window.addEventListener("nearExitUpdate", nearExitListener);
 
       const cleanup = () => {
         window.removeEventListener("openSandwich", openListener);
         window.removeEventListener("nearTableUpdate", nearTableListener);
         window.removeEventListener("nearLibraryUpdate", nearLibraryListener);
+        window.removeEventListener("nearSocraticUpdate", nearSocraticListener);
         window.removeEventListener("enterLibrary", enterLibraryListener);
+        window.removeEventListener("enterSocratic", enterSocraticListener);
         window.removeEventListener("exitLibrary", exitLibraryListener);
+        window.removeEventListener("exitSocratic", exitSocraticListener);
+        window.removeEventListener("nearExitUpdate", nearExitListener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
       phaserRef.currentCleanup = cleanup;
@@ -820,7 +1181,7 @@ export default function App() {
         } catch (e) {}
       }
     };
-  }, [step, color, sandwichDone, currentMap]);
+  }, [step, color, sandwichDone, currentMap, socket]);
 
   // Scale / responsive handling
   useEffect(() => {
@@ -886,6 +1247,17 @@ export default function App() {
         }}
       >
         <h1>Roundy World - {isRegistering ? "Registro" : "Login"}</h1>
+        {serverIP !== "localhost" && (
+          <div style={{
+            background: '#4CAF50',
+            color: 'white',
+            padding: '10px',
+            borderRadius: '5px',
+            marginBottom: '15px'
+          }}>
+            🌐 Conectado al servidor: {serverIP}
+          </div>
+        )}
         <input
           placeholder="Ingresa tu nombre de usuario"
           value={username}
@@ -1043,8 +1415,29 @@ export default function App() {
       }}
     >
       <h2 style={{ textAlign: "center" }}>
-        Hola {username}! {currentMap === "kitchen" ? "Cocina" : "Biblioteca"} - Muévete con las flechas.
+        Hola {username}! {currentMap === "kitchen" ? "Cocina" : 
+                         currentMap === "library" ? "Biblioteca" : 
+                         "Salón Socrático"} - Muévete con las flechas.
+        {Object.values(otherPlayers).filter(p => p.currentMap === currentMap).length > 0 && 
+          ` - Jugadores en esta área: ${Object.values(otherPlayers).filter(p => p.currentMap === currentMap).length + 1}`
+        }
       </h2>
+      
+      {/* Información del servidor */}
+      {serverIP !== "localhost" && (
+        <div style={{
+          background: '#2196F3',
+          color: 'white',
+          padding: '5px 10px',
+          borderRadius: '5px',
+          marginBottom: '10px',
+          fontSize: '14px'
+        }}>
+          🌐 Servidor: {serverIP} | {socketStatus === 'connected' ? '🟢 Conectado' : '🔴 Desconectado'} | 
+          Jugadores: {Object.keys(otherPlayers).length + 1}
+        </div>
+      )}
+
       <div
         ref={containerRef}
         id="phaser-wrapper"
@@ -1177,6 +1570,19 @@ export default function App() {
         </div>
       </div>
 
+      {/* Renderizar otros jugadores */}
+      <div id="other-players-container" style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '800px',
+        height: '600px',
+        pointerEvents: 'none',
+        zIndex: 3
+      }}>
+        {renderOtherPlayers()}
+      </div>
+
       {/* Panel de información */}
       <div
         style={{
@@ -1231,7 +1637,117 @@ export default function App() {
         🏆 Trofeos ({trofeos.total})
       </button>
 
-      {/* CORRECCIÓN: Solo mostrar hint si sandwich no está hecho */}
+      {/* Interfaz de Chat MEJORADA */}
+      <div style={{
+        position: 'absolute',
+        bottom: '20px',
+        right: '20px',
+        width: '300px',
+        background: 'rgba(255,255,255,0.95)',
+        borderRadius: '10px',
+        padding: '10px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        border: '2px solid #4CAF50',
+        zIndex: 100
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '8px'
+        }}>
+          <h4 style={{ margin: 0, color: '#2E7D32' }}>💬 Chat</h4>
+          <button 
+            onClick={() => setShowChat(!showChat)}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            {showChat ? '▲' : '▼'}
+          </button>
+        </div>
+        
+        {showChat && (
+          <>
+            <div style={{
+              height: '120px',
+              overflowY: 'auto',
+              marginBottom: '8px',
+              padding: '5px',
+              background: '#f5f5f5',
+              borderRadius: '5px',
+              fontSize: '14px'
+            }}>
+              <div style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                Escribe un mensaje para comenzar a chatear...
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '5px' }}>
+              <input
+                type="text"
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') {
+                    sendMessage();
+                  }
+                }}
+                onFocus={() => {
+                  if (window.phaserScene && window.phaserScene.input) {
+                    window.phaserScene.input.keyboard.enabled = false;
+                  }
+                }}
+                onBlur={() => {
+                  if (window.phaserScene && window.phaserScene.input) {
+                    window.phaserScene.input.keyboard.enabled = true;
+                  }
+                }}
+                placeholder="Escribe tu mensaje..."
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  fontFamily: 'Arial, sans-serif'
+                }}
+                maxLength={100}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!chatMessage.trim()}
+                style={{
+                  padding: '8px 16px',
+                  background: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: chatMessage.trim() ? 'pointer' : 'not-allowed',
+                  fontWeight: 'bold'
+                }}
+              >
+                Enviar
+              </button>
+            </div>
+            
+            <div style={{
+              fontSize: '11px',
+              color: '#666',
+              marginTop: '5px',
+              textAlign: 'center'
+            }}>
+              Haz clic en el input para escribir • Máx. 100 caracteres
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Hints */}
       {showPressAHint && !showSandwichMinigame && !sandwichDone && currentMap === "kitchen" && (
         <div
           style={{
@@ -1262,11 +1778,28 @@ export default function App() {
             borderRadius: 8,
           }}
         >
-          Presiona <b>E</b> para entrar a la biblioteca
+          Presiona <b>E</b> para cambiar de área
         </div>
       )}
 
-      {/* CORRECCIÓN: Mensaje de sandwich completado - con estado separado para mostrar/ocultar */}
+      {nearExitDoor && currentMap === "socratic" && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#8B4513",
+            color: "#fff",
+            padding: "8px 12px",
+            borderRadius: 8,
+          }}
+        >
+          Presiona <b>E</b> para volver a la cocina
+        </div>
+      )}
+
+      {/* Mensaje de sandwich completado */}
       {showSandwichMessage && currentMap === "kitchen" && (
         <div
           style={{
@@ -1287,7 +1820,7 @@ export default function App() {
         >
           <span>✅ ¡Sandwich completado! +5 monedas</span>
           <button 
-            onClick={() => setShowSandwichMessage(false)} // CORRECCIÓN: Funciona correctamente
+            onClick={() => setShowSandwichMessage(false)}
             style={{
               background: 'rgba(255,255,255,0.2)',
               border: '1px solid rgba(255,255,255,0.5)',
@@ -1380,7 +1913,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal del sandwich - CORRECCIÓN: Solo mostrar si sandwich no está hecho */}
+      {/* Modal del sandwich */}
       {showSandwichMinigame && !sandwichDone && (
         <div style={{
           position: 'fixed',
@@ -1406,7 +1939,6 @@ export default function App() {
           >
             <h3 style={{ marginTop: 0, textAlign: 'center' }}>🥪 Arma tu Sandwich</h3>
             
-            {/* Contador de ingredientes */}
             <div style={{
               textAlign: 'center',
               marginBottom: 10,
@@ -1436,7 +1968,6 @@ export default function App() {
                 marginBottom: 15
               }}
             >
-              {/* Pan superior */}
               <div
                 style={{
                   width: 160,
@@ -1472,7 +2003,6 @@ export default function App() {
                 </div>
               ))}
               
-              {/* Pan inferior */}
               <div
                 style={{
                   width: 160,
@@ -1485,7 +2015,6 @@ export default function App() {
               />
             </div>
             
-            {/* Área de ingredientes */}
             <div style={{ marginBottom: 15 }}>
               <h4 style={{ margin: '0 0 10px 0', textAlign: 'center' }}>Ingredientes Disponibles</h4>
               <div
@@ -1587,7 +2116,6 @@ export default function App() {
               </button>
             </div>
             
-            {/* Instrucciones */}
             <div style={{
               marginTop: 15,
               padding: 10,
