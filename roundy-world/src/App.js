@@ -25,7 +25,7 @@ export default function App() {
   const [showSandwichMessage, setShowSandwichMessage] = useState(false);
   const [nearExitDoor, setNearExitDoor] = useState(false);
   
-  // Nuevos estados para logros, misiones y multijugador
+  // Estados para logros
   const [logros, setLogros] = useState([]);
   const [misiones, setMisiones] = useState([]);
   const [showAchievements, setShowAchievements] = useState(false);
@@ -67,7 +67,7 @@ export default function App() {
   const SOCKET_API = `http://${serverIP}:4002`;
 
   // --------------------------- 
-  // CONEXIÓN SOCKET PARA MULTIJUGADOR - CON PARÁMETROS URL
+  // CONEXIÓN SOCKET PARA MULTIJUGADOR
   // --------------------------- 
   useEffect(() => {
     if (step === "world" && username) {
@@ -110,7 +110,9 @@ export default function App() {
         console.log("🎮 Jugadores actuales recibidos:", players.length);
         const playersMap = {};
         players.forEach(player => {
-          playersMap[player.id] = player;
+          if (player.id !== newSocket.id) { // No incluir al jugador actual
+            playersMap[player.id] = player;
+          }
         });
         setOtherPlayers(playersMap);
       });
@@ -118,7 +120,9 @@ export default function App() {
       // Jugador nuevo
       newSocket.on("player-joined", (player) => {
         console.log("🆕 Jugador unido:", player.username);
-        setOtherPlayers(prev => ({ ...prev, [player.id]: player }));
+        if (player.id !== newSocket.id) {
+          setOtherPlayers(prev => ({ ...prev, [player.id]: player }));
+        }
       });
 
       // Jugador se movió
@@ -162,23 +166,6 @@ export default function App() {
       };
     }
   }, [step, username, color, currentMap, serverIP]);
-
-  // Debug: Verificar datos de otros jugadores
-  useEffect(() => {
-    if (Object.keys(otherPlayers).length > 0) {
-      console.log("🔍 DEBUG - Otros jugadores:", otherPlayers);
-      Object.values(otherPlayers).forEach(player => {
-        if (player.currentMap === currentMap) {
-          console.log(`👤 ${player.username} en mapa:`, {
-            x: player.x,
-            y: player.y, 
-            map: player.currentMap,
-            shouldRender: true
-          });
-        }
-      });
-    }
-  }, [otherPlayers, currentMap]);
 
   // --------------------------- 
   // MONGODB: Login y Registro
@@ -345,7 +332,6 @@ export default function App() {
     }
   };
 
-  // Cargar datos al entrar al mundo
   useEffect(() => {
     if (username && step === "world") {
       loadAchievementsData();
@@ -403,89 +389,131 @@ export default function App() {
   };
 
   // ---------------------------
-  // RENDERIZAR OTROS JUGADORES - VERSIÓN CORREGIDA
+  // RENDERIZAR OTROS JUGADORES - VERSIÓN IDÉNTICA AL JUGADOR PRINCIPAL
   // ---------------------------
   const renderOtherPlayers = () => {
+    // Filtrar solo jugadores en el mapa actual
     const currentPlayers = Object.values(otherPlayers)
-      .filter(player => player.currentMap === currentMap && player.id !== socket?.id);
+      .filter(player => player.currentMap === currentMap);
   
-    console.log(`🎯 Renderizando ${currentPlayers.length} jugadores en ${currentMap}`, currentPlayers);
+    console.log(`🎯 Renderizando ${currentPlayers.length} jugadores en ${currentMap}`);
 
     return currentPlayers.map(player => {
-      // Asegurarnos de que las coordenadas sean números válidos
       const playerX = Number(player.x) || 100;
       const playerY = Number(player.y) || 100;
 
       return (
         <div
           key={player.id}
-          className="other-player"
           style={{
             position: 'absolute',
-            left: playerX,
-            top: playerY,
+            left: `${playerX}px`,
+            top: `${playerY}px`,
+            width: 64,
+            height: 64,
             transform: 'translate(-50%, -50%)',
-            zIndex: 2,
+            zIndex: 10,
             pointerEvents: 'none'
           }}
         >
-          {/* Avatar del jugador */}
-          <svg viewBox="0 0 100 100" width="48" height="48">
+          {/* Avatar del jugador - IDÉNTICO AL JUGADOR PRINCIPAL */}
+          <svg viewBox="0 0 100 100" width="64" height="64">
             <defs>
               <filter id={`otherPlayerShadow-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.3" />
+                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.18" />
               </filter>
             </defs>
             <g id="body">
               <circle
                 cx="50"
                 cy="44"
-                r="20"
+                r="24"
                 fill={numToCssHex(player.color)}
                 stroke="#111"
-                strokeWidth="1.5"
+                strokeWidth="1.8"
                 filter={`url(#otherPlayerShadow-${player.id})`}
               />
-              <g id="eyes">
-                <circle cx="42" cy="40" r="3" fill="#000" />
-                <circle cx="58" cy="40" r="3" fill="#000" />
+              <g id="eyes" transform="translate(0,0)">
+                <circle cx="42" cy="40" r="3.7" fill="#000" />
+                <circle cx="58" cy="40" r="3.7" fill="#000" />
               </g>
               <path
-                d="M40 52 Q50 58 60 52"
+                d="M40 52 Q50 60 60 52"
                 stroke="#111"
-                strokeWidth="1.5"
+                strokeWidth="2"
                 fill="none"
+                strokeLinecap="round"
+              />
+            </g>
+            <g id="arms" transform="translate(0,0)">
+              <line
+                x1="22"
+                y1="50"
+                x2="6"
+                y2="66"
+                stroke="#111"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+              <line
+                x1="78"
+                y1="50"
+                x2="94"
+                y2="66"
+                stroke="#111"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+            </g>
+            <g id="legs">
+              <line
+                x1="42"
+                y1="68"
+                x2="36"
+                y2="86"
+                stroke="#111"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+              <line
+                x1="58"
+                y1="68"
+                x2="64"
+                y2="86"
+                stroke="#111"
+                strokeWidth="4"
                 strokeLinecap="round"
               />
             </g>
           </svg>
           
-          {/* Nombre de usuario */}
+          {/* Nombre de usuario - SIEMPRE VISIBLE */}
           <div style={{
             position: 'absolute',
             top: '-35px',
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.8)',
+            background: 'rgba(0,0,0,0.85)',
             color: 'white',
             padding: '4px 12px',
             borderRadius: '12px',
-            fontSize: '11px',
+            fontSize: '12px',
             whiteSpace: 'nowrap',
             fontWeight: 'bold',
-            zIndex: 10,
+            zIndex: 20,
             border: '1px solid rgba(255,255,255,0.3)',
             minWidth: '60px',
-            textAlign: 'center'
+            textAlign: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
           }}>
             {player.username}
           </div>
           
-          {/* Mensaje de chat */}
-          {player.message && Date.now() - player.messageTimestamp < 5000 && (
+          {/* Mensaje de chat - SOLO SI HAY MENSAJE RECIENTE */}
+          {player.message && player.messageTimestamp && (Date.now() - player.messageTimestamp < 5000) && (
             <div style={{
               position: 'absolute',
-              top: '-65px',
+              top: '-70px',
               left: '50%',
               transform: 'translateX(-50%)',
               background: 'rgba(255,255,255,0.98)',
@@ -497,8 +525,9 @@ export default function App() {
               wordWrap: 'break-word',
               border: '2px solid #4CAF50',
               boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              zIndex: 11,
-              fontFamily: 'Arial, sans-serif'
+              zIndex: 21,
+              fontFamily: 'Arial, sans-serif',
+              lineHeight: '1.3'
             }}>
               {player.message}
             </div>
@@ -806,17 +835,30 @@ export default function App() {
             s.rect(0, 400, 800, 200);
             
             // Estatuas de Sócrates
-            s.fill("#C0C0C0");
-            s.rect(200, 300, 40, 100);
-            s.ellipse(220, 250, 50, 50);
-            s.fill("#666");
-            s.rect(195, 320, 10, 30);
-            s.rect(235, 320, 10, 30);
-            s.fill("#555");
-            s.rect(180, 400, 80, 20);
+            s.fill("#808080");
+            s.circle(220, 280, 40);
+            s.fill("#606060");
+            s.circle(220, 340, 50);
+            
+            // Barba de Sócrates
+            s.fill("#404040");
+            s.triangle(200, 270, 220, 290, 240, 270);
+            
+            // Ojos
+            s.fill("#000");
+            s.circle(210, 275, 4);
+            s.circle(230, 275, 4);
+            
+            // Toga griega
+            s.fill("#F5F5DC");
+            s.rect(180, 365, 80, 40, 5);
+            
+            // Base de la estatua
+            s.fill("#A9A9A9");
+            s.rect(180, 420, 80, 20);
             s.fill("#333");
-            s.textSize(12);
-            s.text("SÓCRATES", 190, 390);
+            s.textSize(10);
+            s.text("SÓCRATES", 190, 410);
             
             // Bancas para conversación
             s.fill("#8B4513");
@@ -824,17 +866,25 @@ export default function App() {
             s.rect(350, 350, 20, 60);
             s.rect(630, 350, 20, 60);
             
+            // Columnas griegas
+            s.fill("#D2B48C");
+            s.rect(100, 250, 20, 150);
+            s.rect(340, 250, 20, 150);
+            s.fill("#DEB887");
+            s.rect(95, 240, 30, 15);
+            s.rect(335, 240, 30, 15);
+            
             // Árboles
             s.fill("#8B4513");
             s.rect(600, 250, 30, 150);
             s.fill("#228B22");
-            s.ellipse(615, 200, 100, 100);
+            s.circle(615, 200, 100);
             
             // Fuente
             s.fill("#B0E0E6");
-            s.ellipse(500, 500, 80, 30);
+            s.circle(500, 500, 80);
             s.fill("#87CEEB");
-            s.ellipse(500, 480, 50, 20);
+            s.circle(500, 480, 50);
             
             // Puerta de regreso a cocina
             s.fill("#8B4513");
@@ -902,9 +952,6 @@ export default function App() {
         const exitDoor = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
         this.physics.add.existing(exitDoor, true);
 
-        const socraticExit = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
-        this.physics.add.existing(socraticExit, true);
-
         player = this.add.circle(50, 300, 16, 0xffffff, 0);
         this.physics.add.existing(player);
         player.body.setCollideWorldBounds(true, 1, 1, true);
@@ -914,7 +961,7 @@ export default function App() {
         player.body.setDrag(800, 800);
         player.body.setMaxVelocity(200, 200);
 
-        const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor, socraticDoor, socraticExit];
+        const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor, socraticDoor];
         obstacles.forEach((obs) => {
           this.physics.add.collider(player, obs, null, null, this);
         });
@@ -1046,7 +1093,7 @@ export default function App() {
           lastSentPosition = currentPos;
         }
 
-        // Control de visibilidad del signo de exclamación
+        // Control de visibilidad de signos
         if (window.tableExclamation) {
           const shouldShow = !sandwichDone && currentMap === "kitchen";
           window.tableExclamation.setVisible(shouldShow);
@@ -1075,8 +1122,7 @@ export default function App() {
           const scene = window.phaserScene;
           const playerObj = window.phaserPlayer;
           const svgEl = svgRef.current;
-          const stageEl = stageRef.current;
-          if (scene && playerObj && svgEl && stageEl) {
+          if (scene && playerObj && svgEl) {
             const x = playerObj.x;
             const y = playerObj.y;
             svgEl.style.left = `${x}px`;
@@ -1135,10 +1181,6 @@ export default function App() {
         audioService.playSuccessSound();
       };
 
-      const exitSocraticListener = () => {
-        handleExitSocratic();
-      };
-
       const nearExitListener = (e) => {
         setNearExitDoor(e.detail.near);
       };
@@ -1150,7 +1192,6 @@ export default function App() {
       window.addEventListener("enterLibrary", enterLibraryListener);
       window.addEventListener("enterSocratic", enterSocraticListener);
       window.addEventListener("exitLibrary", exitLibraryListener);
-      window.addEventListener("exitSocratic", exitSocraticListener);
       window.addEventListener("nearExitUpdate", nearExitListener);
 
       const cleanup = () => {
@@ -1161,7 +1202,6 @@ export default function App() {
         window.removeEventListener("enterLibrary", enterLibraryListener);
         window.removeEventListener("enterSocratic", enterSocraticListener);
         window.removeEventListener("exitLibrary", exitLibraryListener);
-        window.removeEventListener("exitSocratic", exitSocraticListener);
         window.removeEventListener("nearExitUpdate", nearExitListener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
@@ -1471,6 +1511,8 @@ export default function App() {
               zIndex: 0,
             }}
           />
+          
+          {/* JUGADOR PRINCIPAL */}
           <div
             ref={svgRef}
             id="svg-player"
@@ -1481,7 +1523,7 @@ export default function App() {
               width: 64,
               height: 64,
               transform: "translate(-50%,-50%)",
-              zIndex: 2,
+              zIndex: 5,
               pointerEvents: "none",
             }}
           >
@@ -1567,20 +1609,10 @@ export default function App() {
               </g>
             </svg>
           </div>
-        </div>
-      </div>
 
-      {/* Renderizar otros jugadores */}
-      <div id="other-players-container" style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '800px',
-        height: '600px',
-        pointerEvents: 'none',
-        zIndex: 3
-      }}>
-        {renderOtherPlayers()}
+          {/* OTROS JUGADORES - AHORA DENTRO DEL STAGE */}
+          {renderOtherPlayers()}
+        </div>
       </div>
 
       {/* Panel de información */}
@@ -1765,6 +1797,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Mensaje de E para entrar a la biblioteca o salón socrático */}
       {showPressEHint && currentMap === "kitchen" && (
         <div
           style={{
@@ -1778,11 +1811,11 @@ export default function App() {
             borderRadius: 8,
           }}
         >
-          Presiona <b>E</b> para cambiar de área
+          Presiona <b>E</b> para entrar
         </div>
       )}
 
-      {nearExitDoor && currentMap === "socratic" && (
+      {nearExitDoor && (currentMap === "socratic" || currentMap === "library") && (
         <div
           style={{
             position: "absolute",
