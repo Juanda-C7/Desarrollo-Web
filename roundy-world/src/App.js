@@ -51,8 +51,8 @@ export default function App() {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
 
-  const MONGODB_API = "http://localhost:4001";
-  const ACHIEVEMENTS_API = "http://localhost:2001";
+  const MONGODB_API = "http://" + window.location.hostname + ":4001";
+  const ACHIEVEMENTS_API = "http://" + window.location.hostname + ":2001";
 
   // Obtener IP del servidor desde parámetros URL
   useEffect(() => {
