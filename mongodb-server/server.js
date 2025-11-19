@@ -8,7 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conectar a MongoDB Atlas - USA TU STRING DE CONEXIÓN
+// Conectar a MongoDB Atlas
 const MONGODB_URI = "mongodb+srv://Juanda:mongojuanda@clusterrw.21u8eyr.mongodb.net/roundyworld?retryWrites=true&w=majority";
 
 console.log("🔗 Conectando a MongoDB Atlas...");
@@ -19,7 +19,7 @@ mongoose.connect(MONGODB_URI)
     process.exit(1);
   });
 
-// Esquema del usuario
+// Esquema del usuario ACTUALIZADO
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -27,6 +27,8 @@ const userSchema = new mongoose.Schema({
   money: { type: Number, default: 0 },
   educationalPoints: { type: Number, default: 0 },
   sandwichDone: { type: Boolean, default: false },
+  selectedHat: { type: Number, default: null },
+  ownedHats: { type: [Number], default: [] },
   trofeos: {
     bronce: { type: Number, default: 0 },
     plata: { type: Number, default: 0 },
@@ -90,6 +92,8 @@ app.post("/register", async (req, res) => {
       money: 0,
       educationalPoints: 0,
       sandwichDone: false,
+      selectedHat: null,
+      ownedHats: [],
       trofeos: {
         bronce: 0,
         plata: 0,
@@ -114,6 +118,8 @@ app.post("/register", async (req, res) => {
         money: newUser.money,
         educationalPoints: newUser.educationalPoints,
         sandwichDone: newUser.sandwichDone,
+        selectedHat: newUser.selectedHat,
+        ownedHats: newUser.ownedHats,
         trofeos: newUser.trofeos
       }
     });
@@ -156,6 +162,8 @@ app.post("/login", async (req, res) => {
         money: user.money,
         educationalPoints: user.educationalPoints,
         sandwichDone: user.sandwichDone,
+        selectedHat: user.selectedHat,
+        ownedHats: user.ownedHats,
         trofeos: user.trofeos
       }
     });
@@ -179,6 +187,8 @@ app.get("/user", authenticateToken, async (req, res) => {
       money: user.money,
       educationalPoints: user.educationalPoints,
       sandwichDone: user.sandwichDone,
+      selectedHat: user.selectedHat,
+      ownedHats: user.ownedHats || [],
       trofeos: user.trofeos,
       logrosCompletados: user.logrosCompletados,
       misionesProgreso: user.misionesProgreso
@@ -192,7 +202,7 @@ app.get("/user", authenticateToken, async (req, res) => {
 // 🔹 ACTUALIZAR datos del usuario (protegido)
 app.put("/user", authenticateToken, async (req, res) => {
   try {
-    const { color, money, educationalPoints, sandwichDone, trofeos, logrosCompletados, misionesProgreso } = req.body;
+    const { color, money, educationalPoints, sandwichDone, trofeos, logrosCompletados, misionesProgreso, selectedHat, ownedHats } = req.body;
 
     const updateData = {};
     if (color !== undefined) updateData.color = color;
@@ -202,6 +212,8 @@ app.put("/user", authenticateToken, async (req, res) => {
     if (trofeos !== undefined) updateData.trofeos = trofeos;
     if (logrosCompletados !== undefined) updateData.logrosCompletados = logrosCompletados;
     if (misionesProgreso !== undefined) updateData.misionesProgreso = misionesProgreso;
+    if (selectedHat !== undefined) updateData.selectedHat = selectedHat;
+    if (ownedHats !== undefined) updateData.ownedHats = ownedHats;
 
     const updatedUser = await User.findOneAndUpdate(
       { username: req.user.username },
@@ -221,11 +233,121 @@ app.put("/user", authenticateToken, async (req, res) => {
         money: updatedUser.money,
         educationalPoints: updatedUser.educationalPoints,
         sandwichDone: updatedUser.sandwichDone,
+        selectedHat: updatedUser.selectedHat,
+        ownedHats: updatedUser.ownedHats,
         trofeos: updatedUser.trofeos
       }
     });
   } catch (error) {
     console.error("Error actualizando usuario:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 OBTENER sombreros del usuario
+app.get("/user/hats", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({
+      hats: user.ownedHats || []
+    });
+  } catch (error) {
+    console.error("Error obteniendo sombreros:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 COMPRAR sombrero - VERSIÓN MEJORADA
+app.post("/user/purchase-hat", authenticateToken, async (req, res) => {
+  try {
+    const { hatId, cost, currency } = req.body;
+    
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verificar si ya posee el sombrero
+    if (user.ownedHats && user.ownedHats.includes(hatId)) {
+      return res.status(400).json({ error: "Ya posees este sombrero" });
+    }
+
+    // Verificar que tenga suficientes recursos
+    if (currency === "points" && user.educationalPoints < cost) {
+      return res.status(400).json({ error: "Puntos educativos insuficientes" });
+    }
+    
+    if (currency === "money" && user.money < cost) {
+      return res.status(400).json({ error: "Dinero insuficiente" });
+    }
+
+    // Actualizar recursos
+    if (currency === "points") {
+      user.educationalPoints -= cost;
+    } else {
+      user.money -= cost;
+    }
+
+    // Agregar sombrero a la colección
+    if (!user.ownedHats) {
+      user.ownedHats = [];
+    }
+
+    // Agregar el sombrero (ya verificamos que no existe)
+    user.ownedHats.push(hatId);
+    
+    // Equipar automáticamente el sombrero recién comprado
+    user.selectedHat = hatId;
+
+    await user.save();
+
+    res.json({
+      message: "Sombrero comprado y equipado exitosamente",
+      user: {
+        username: user.username,
+        money: user.money,
+        educationalPoints: user.educationalPoints,
+        ownedHats: user.ownedHats,
+        selectedHat: user.selectedHat
+      }
+    });
+  } catch (error) {
+    console.error("Error comprando sombrero:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 EQUIPAR sombrero - VERSIÓN MEJORADA
+app.post("/user/equip-hat", authenticateToken, async (req, res) => {
+  try {
+    const { hatId } = req.body;
+    
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verificar que el usuario posea el sombrero
+    if (!user.ownedHats || !user.ownedHats.includes(hatId)) {
+      return res.status(400).json({ error: "No posees este sombrero" });
+    }
+
+    user.selectedHat = hatId;
+    await user.save();
+
+    res.json({
+      message: "Sombrero equipado exitosamente",
+      user: {
+        username: user.username,
+        selectedHat: user.selectedHat
+      }
+    });
+  } catch (error) {
+    console.error("Error equipando sombrero:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
@@ -313,6 +435,9 @@ app.listen(PORT, () => {
   console.log(`   POST   /login`);
   console.log(`   GET    /user (protegido)`);
   console.log(`   PUT    /user (protegido)`);
+  console.log(`   GET    /user/hats (protegido)`);
+  console.log(`   POST   /user/purchase-hat (protegido)`);
+  console.log(`   POST   /user/equip-hat (protegido)`);
   console.log(`   POST   /sync-achievements (protegido)`);
   console.log(`   GET    /health`);
 });

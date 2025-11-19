@@ -30,6 +30,8 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [playerHouse, setPlayerHouse] = useState(null);
   const [selectedHat, setSelectedHat] = useState(null);
+  const [availableHats, setAvailableHats] = useState([]);
+  const [ownedHats, setOwnedHats] = useState([]);
 
   // Estados para logros
   const [logros, setLogros] = useState([]);
@@ -81,8 +83,291 @@ export default function App() {
     }
   }, [step, username]);
 
+  // Cargar datos del usuario y sombreros - CORREGIDO
+  useEffect(() => {
+    if (step === "world" && username) {
+      syncUserData();
+    }
+  }, [step, username]);
+
+  const syncUserData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${MONGODB_API}/user`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        
+        // Sincronizar todos los estados locales
+        setMoney(userData.money || 0);
+        setEducationalPoints(userData.educationalPoints || 0);
+        setOwnedHats(userData.ownedHats || []);
+        
+        // Cargar lista de sombreros disponibles
+        await loadHatsData(userData.ownedHats || []);
+        
+        // Cargar sombrero seleccionado - CORREGIDO
+        if (userData.selectedHat) {
+          const hat = getHatById(userData.selectedHat);
+          if (hat) {
+            setSelectedHat(hat);
+            // Guardar en localStorage para persistencia inmediata
+            localStorage.setItem('selectedHat', JSON.stringify(hat));
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error sincronizando datos del usuario:", error);
+    }
+  };
+
+  // Función auxiliar para obtener sombrero por ID - CORREGIDA
+  const getHatById = (hatId) => {
+    const hats = [
+      { 
+        id: 1, 
+        name: "🎓 Gorro de Graduado", 
+        cost: 50, 
+        currency: "points",
+        description: "Para los más estudiosos"
+      },
+      { 
+        id: 2, 
+        name: "👑 Corona", 
+        cost: 100, 
+        currency: "points",
+        description: "Para los reyes del conocimiento"
+      },
+      { 
+        id: 3, 
+        name: "🎩 Sombrero de Copa", 
+        cost: 150, 
+        currency: "points",
+        description: "Elegancia y estilo"
+      },
+      { 
+        id: 4, 
+        name: "🧢 Gorra Deportiva", 
+        cost: 200, 
+        currency: "points", 
+        description: "Para los más activos"
+      },
+      { 
+        id: 5, 
+        name: "⛑️ Casco de Seguridad", 
+        cost: 25, 
+        currency: "money",
+        description: "Protección para tus aventuras"
+      },
+      { 
+        id: 6, 
+        name: "🧢 Gorra Béisbol", 
+        cost: 50, 
+        currency: "money",
+        description: "Estilo deportivo"
+      }
+    ];
+    
+    return hats.find(h => h.id === hatId);
+  };
+
+  const loadHatsData = async (userOwnedHats = []) => {
+    try {
+      const hats = [
+        { 
+          id: 1, 
+          name: "🎓 Gorro de Graduado", 
+          cost: 50, 
+          currency: "points",
+          unlocked: educationalPoints >= 50,
+          owned: userOwnedHats.includes(1),
+          description: "Para los más estudiosos"
+        },
+        { 
+          id: 2, 
+          name: "👑 Corona", 
+          cost: 100, 
+          currency: "points",
+          unlocked: educationalPoints >= 100,
+          owned: userOwnedHats.includes(2),
+          description: "Para los reyes del conocimiento"
+        },
+        { 
+          id: 3, 
+          name: "🎩 Sombrero de Copa", 
+          cost: 150, 
+          currency: "points",
+          unlocked: educationalPoints >= 150,
+          owned: userOwnedHats.includes(3),
+          description: "Elegancia y estilo"
+        },
+        { 
+          id: 4, 
+          name: "🧢 Gorra Deportiva", 
+          cost: 200, 
+          currency: "points", 
+          unlocked: educationalPoints >= 200,
+          owned: userOwnedHats.includes(4),
+          description: "Para los más activos"
+        },
+        { 
+          id: 5, 
+          name: "⛑️ Casco de Seguridad", 
+          cost: 25, 
+          currency: "money",
+          unlocked: money >= 25,
+          owned: userOwnedHats.includes(5),
+          description: "Protección para tus aventuras"
+        },
+        { 
+          id: 6, 
+          name: "🧢 Gorra Béisbol", 
+          cost: 50, 
+          currency: "money",
+          unlocked: money >= 50,
+          owned: userOwnedHats.includes(6),
+          description: "Estilo deportivo"
+        }
+      ];
+
+      setAvailableHats(hats);
+    } catch (error) {
+      console.error("Error cargando sombreros:", error);
+    }
+  };
+
+  const purchaseHat = async (hat) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Verificar si ya posee el sombrero
+      if (hat.owned) {
+        alert("¡Ya posees este sombrero! Puedes equiparlo desde tu colección.");
+        return;
+      }
+      
+      if (hat.currency === "points" && educationalPoints < hat.cost) {
+        alert("No tienes suficientes puntos educativos");
+        return;
+      }
+      
+      if (hat.currency === "money" && money < hat.cost) {
+        alert("No tienes suficiente dinero");
+        return;
+      }
+
+      const response = await fetch(`${MONGODB_API}/user/purchase-hat`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          hatId: hat.id,
+          cost: hat.cost,
+          currency: hat.currency
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Actualizar estados locales
+        if (hat.currency === "points") {
+          setEducationalPoints(prev => prev - hat.cost);
+        } else {
+          setMoney(prev => prev - hat.cost);
+        }
+        
+        // Equipar automáticamente el sombrero después de comprarlo
+        const newHat = { ...hat, owned: true };
+        setSelectedHat(newHat);
+        
+        // Actualizar la lista de sombreros poseídos
+        setOwnedHats(prev => [...prev, hat.id]);
+        
+        // Actualizar availableHats para marcar como poseído
+        setAvailableHats(prev => prev.map(h => 
+          h.id === hat.id ? { ...h, owned: true } : h
+        ));
+        
+        // Guardar en localStorage
+        localStorage.setItem('selectedHat', JSON.stringify(newHat));
+        
+        audioService.playSuccessSound();
+        alert(`¡Felicidades! Has adquirido y equipado ${hat.name}`);
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Error al comprar el sombrero");
+      }
+    } catch (error) {
+      console.error("Error comprando sombrero:", error);
+      alert("Error de conexión");
+    }
+  };
+
+  // Función equipHat corregida - SIN USEEFFECT INTERNO
+  const equipHat = async (hat) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Verificar que el usuario posea el sombrero
+      if (!hat.owned && !ownedHats.includes(hat.id)) {
+        alert("No posees este sombrero. Debes comprarlo primero.");
+        return;
+      }
+
+      const response = await fetch(`${MONGODB_API}/user/equip-hat`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          hatId: hat.id
+        }),
+      });
+
+      if (response.ok) {
+        // Actualizar estado local
+        setSelectedHat(hat);
+        
+        // Guardar en localStorage para persistencia inmediata
+        localStorage.setItem('selectedHat', JSON.stringify(hat));
+        
+        audioService.playSuccessSound();
+        alert(`¡Has equipado ${hat.name}!`);
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Error al equipar el sombrero");
+      }
+    } catch (error) {
+      console.error("Error equipando sombrero:", error);
+      alert("Error de conexión");
+    }
+  };
+
+  // Cargar sombrero seleccionado desde localStorage al iniciar - CORREGIDO
+  useEffect(() => {
+    if (step === "world") {
+      const savedHat = localStorage.getItem('selectedHat');
+      if (savedHat) {
+        try {
+          const hat = JSON.parse(savedHat);
+          setSelectedHat(hat);
+        } catch (error) {
+          console.error("Error cargando sombrero desde localStorage:", error);
+        }
+      }
+    }
+  }, [step]);
+
   // --------------------------- 
-  // CONEXIÓN SOCKET PARA MULTIJUGADOR
+  // CONEXIÓN SOCKET PARA MULTIJUGADOR - CORREGIDA
   // --------------------------- 
   useEffect(() => {
     if (step === "world" && username) {
@@ -99,13 +384,14 @@ export default function App() {
         console.log("✅ Conectado al servidor Socket.io");
         setSocketStatus("connected");
         
-        // Unirse al juego
+        // Unirse al juego con información del sombrero
         newSocket.emit("join-game", {
           username,
           color,
           x: 150,
           y: 300,
-          currentMap
+          currentMap,
+          selectedHat: selectedHat // Enviar información del sombrero
         });
       });
 
@@ -117,7 +403,6 @@ export default function App() {
       newSocket.on("connect_error", (error) => {
         console.error("❌ Error conectando al servidor:", error);
         setSocketStatus("error");
-        alert(`No se pudo conectar al servidor: ${serverIP}:4002\n\nAsegúrate de que:\n1. El servidor esté ejecutándose\n2. La IP sea correcta\n3. Estén en la misma red`);
       });
 
       // Escuchar jugadores actuales
@@ -134,7 +419,7 @@ export default function App() {
 
       // Jugador nuevo
       newSocket.on("player-joined", (player) => {
-        console.log("🆕 Jugador unido:", player.username);
+        console.log("🆕 Jugador unido:", player.username, "con sombrero:", player.selectedHat);
         if (player.id !== newSocket.id) {
           setOtherPlayers(prev => ({ ...prev, [player.id]: player }));
         }
@@ -165,6 +450,18 @@ export default function App() {
         }));
       });
 
+      // Jugador cambió sombrero - NUEVO EVENTO
+      newSocket.on("player-hat-changed", (data) => {
+        console.log("🎩 Jugador cambió sombrero:", data.username, data.selectedHat);
+        setOtherPlayers(prev => ({
+          ...prev,
+          [data.id]: {
+            ...prev[data.id],
+            selectedHat: data.selectedHat
+          }
+        }));
+      });
+
       // Jugador salió
       newSocket.on("player-left", (playerId) => {
         console.log("👋 Jugador salió:", playerId);
@@ -181,6 +478,16 @@ export default function App() {
       };
     }
   }, [step, username, color, currentMap, serverIP]);
+
+  // Enviar actualización de sombrero a otros jugadores - CORREGIDO
+  useEffect(() => {
+    if (socket && selectedHat && step === "world") {
+      console.log("🎩 Enviando actualización de sombrero:", selectedHat.name);
+      socket.emit("player-hat-change", {
+        selectedHat: selectedHat
+      });
+    }
+  }, [selectedHat, socket, step]);
 
   // --------------------------- 
   // MONGODB: Login y Registro
@@ -209,6 +516,16 @@ export default function App() {
         setSandwichDone(data.user.sandwichDone);
         setEducationalPoints(data.user.educationalPoints);
         if (data.user.trofeos) setTrofeos(data.user.trofeos);
+        
+        // Cargar sombrero seleccionado desde la base de datos
+        if (data.user.selectedHat) {
+          const hat = getHatById(data.user.selectedHat);
+          if (hat) {
+            setSelectedHat(hat);
+            localStorage.setItem('selectedHat', JSON.stringify(hat));
+          }
+        }
+        
         setStep("world");
         
         loadAchievementsData();
@@ -263,12 +580,12 @@ export default function App() {
   };
 
   // --------------------------- 
-  // MONGODB: Guardar datos automáticamente
+  // MONGODB: Guardar datos automáticamente - CORREGIDO
   // --------------------------- 
   useEffect(() => {
     const saveUserData = async () => {
       const token = localStorage.getItem('token');
-      if (!token || !username) return;
+      if (!token || !username || step !== "world") return;
 
       try {
         await fetch(`${MONGODB_API}/user`, {
@@ -282,7 +599,8 @@ export default function App() {
             money, 
             sandwichDone, 
             educationalPoints,
-            trofeos 
+            trofeos,
+            selectedHat: selectedHat ? selectedHat.id : null
           }),
         });
       } catch (error) {
@@ -290,10 +608,14 @@ export default function App() {
       }
     };
 
-    if (username && step === "world") {
-      saveUserData();
-    }
-  }, [username, color, money, sandwichDone, educationalPoints, trofeos, step]);
+    // Guardar datos periódicamente y cuando cambien
+    const saveInterval = setInterval(saveUserData, 10000); // Cada 10 segundos
+    
+    // También guardar cuando cambien datos importantes
+    saveUserData();
+    
+    return () => clearInterval(saveInterval);
+  }, [username, color, money, sandwichDone, educationalPoints, trofeos, step, selectedHat]);
 
   // ---------------------------
   // SISTEMA DE LOGROS Y MISIONES
@@ -385,7 +707,7 @@ export default function App() {
   const numToCssHex = (num) => "#" + num.toString(16).padStart(6, "0");
 
   // ---------------------------
-  // FUNCIONES DE NAVEGACIÓN
+  // FUNCIONES DE NAVEGACIÓN - SIN PUERTAS
   // ---------------------------
   const handleEnterLibrary = () => {
     setCurrentMap("library");
@@ -399,7 +721,7 @@ export default function App() {
   };
 
   const handleExitToKitchen = () => {
-    setCurrentMap("kitchen");
+    setCurrentMap(playerHouse || "kitchen");
     audioService.playSuccessSound();
   };
 
@@ -503,25 +825,25 @@ export default function App() {
     );
   };
 
-  // Modal de Perfil y Personalización
+  // Modal de Perfil y Personalización - CORREGIDO
   const ProfileModal = () => {
-    const hats = [
-      { id: 1, name: "🎓 Gorro de Graduado", cost: 50, unlocked: educationalPoints >= 50 },
-      { id: 2, name: "👑 Corona", cost: 100, unlocked: educationalPoints >= 100 },
-      { id: 3, name: "🎩 Sombrero de Copa", cost: 150, unlocked: educationalPoints >= 150 },
-      { id: 4, name: "🧢 Gorra Deportiva", cost: 200, unlocked: educationalPoints >= 200 },
-      { id: 5, name: "⛑️ Casco de Seguridad", cost: 250, unlocked: educationalPoints >= 250 }
-    ];
+    const [activeTab, setActiveTab] = useState('collection');
 
     const handleLogout = () => {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
+      localStorage.removeItem('selectedHat');
       setStep('login');
       setShowProfile(false);
       if (socket) {
         socket.close();
       }
     };
+
+    // Filtrar sombreros poseídos y disponibles
+    const ownedHatsList = availableHats.filter(hat => hat.owned);
+    const availableHatsList = availableHats.filter(hat => !hat.owned && hat.unlocked);
+    const lockedHatsList = availableHats.filter(hat => !hat.owned && !hat.unlocked);
 
     return (
       <div style={{
@@ -540,7 +862,7 @@ export default function App() {
           background: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)',
           padding: '30px',
           borderRadius: '20px',
-          width: '600px',
+          width: '700px',
           maxHeight: '80vh',
           overflow: 'auto',
           textAlign: 'center'
@@ -555,13 +877,7 @@ export default function App() {
           }}>
             <div style={{ position: 'relative', width: '120px', height: '120px' }}>
               <svg width="120" height="120" viewBox="0 0 100 100">
-                {/* Sombrero seleccionado */}
-                {selectedHat && (
-                  <g id="hat">
-                    <circle cx="50" cy="30" r="25" fill="#4a4a4a" />
-                    <rect x="30" y="35" width="40" height="8" fill="#333" />
-                  </g>
-                )}
+                {/* Cuerpo del personaje */}
                 <g id="body">
                   <circle cx="50" cy="44" r="24" fill={numToCssHex(color)} stroke="#111" strokeWidth="1.8" />
                   <g id="eyes">
@@ -570,6 +886,55 @@ export default function App() {
                   </g>
                   <path d="M40 52 Q50 60 60 52" stroke="#111" strokeWidth="2" fill="none" strokeLinecap="round" />
                 </g>
+                
+                {/* Sombrero seleccionado */}
+                {selectedHat && (
+                  <g id="hat" transform="translate(0, -5)">
+                    {selectedHat.id === 1 && ( // Gorro de Graduado
+                      <>
+                        <rect x="20" y="15" width="60" height="12" fill="#1a1a1a" />
+                        <rect x="25" y="27" width="50" height="6" fill="#0f0f0f" />
+                        <path d="M25 15 Q50 5 75 15" fill="none" stroke="#ffd700" strokeWidth="3" />
+                      </>
+                    )}
+                    {selectedHat.id === 2 && ( // Corona
+                      <>
+                        <path d="M25 20 L35 12 L45 20 L43 25 L57 25 L55 20 L65 12 L75 20 L70 32 L30 32 Z" fill="#ffd700" stroke="#ff6b00" strokeWidth="1.5" />
+                        <circle cx="35" cy="18" r="2" fill="#ff6b00" />
+                        <circle cx="50" cy="15" r="2" fill="#ff6b00" />
+                        <circle cx="65" cy="18" r="2" fill="#ff6b00" />
+                      </>
+                    )}
+                    {selectedHat.id === 3 && ( // Sombrero de Copa
+                      <>
+                        <rect x="25" y="10" width="50" height="6" fill="#2c2c2c" />
+                        <ellipse cx="50" cy="20" rx="30" ry="8" fill="#1a1a1a" />
+                        <rect x="40" y="20" width="20" height="2" fill="#333" />
+                      </>
+                    )}
+                    {selectedHat.id === 4 && ( // Gorra Deportiva
+                      <>
+                        <path d="M20 18 Q50 8 80 18 L75 28 L25 28 Z" fill="#e74c3c" />
+                        <rect x="30" y="18" width="40" height="4" fill="#c0392b" />
+                        <rect x="45" y="22" width="10" height="3" fill="#fff" />
+                      </>
+                    )}
+                    {selectedHat.id === 5 && ( // Casco de Seguridad
+                      <>
+                        <path d="M25 15 Q50 5 75 15 Q75 30 50 35 Q25 30 25 15" fill="#e74c3c" />
+                        <rect x="40" y="20" width="20" height="8" fill="#2c3e50" />
+                        <rect x="45" y="28" width="10" height="2" fill="#34495e" />
+                      </>
+                    )}
+                    {selectedHat.id === 6 && ( // Gorra Béisbol
+                      <>
+                        <path d="M20 17 Q50 7 80 17 L75 27 L25 27 Z" fill="#3498db" />
+                        <rect x="30" y="17" width="40" height="4" fill="#2980b9" />
+                        <path d="M45 21 L55 21 L55 24 L45 24 Z" fill="#fff" />
+                      </>
+                    )}
+                  </g>
+                )}
               </svg>
             </div>
           </div>
@@ -587,71 +952,270 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>🏆 Trofeos: <strong>{trofeos.total}</strong></span>
-              <span>🎯 Logros: <strong>{logros.filter(l => l.completado).length}/{logros.length}</strong></span>
+              <span>🎩 Sombreros: <strong>{ownedHats.length}/6</strong></span>
             </div>
+            {selectedHat && (
+              <div style={{ marginTop: '10px', padding: '8px', background: '#e3f2fd', borderRadius: '5px' }}>
+                <strong>Sombrero equipado:</strong> {selectedHat.name}
+              </div>
+            )}
           </div>
 
-          {/* Selector de Color */}
-          <h3 style={{ color: 'white', marginBottom: '15px' }}>🎨 Cambiar Color</h3>
+          {/* Pestañas */}
           <div style={{
-            display: "flex",
-            gap: "12px",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            marginBottom: '25px'
-          }}>
-            {Object.entries(colors).map(([name, hex]) => (
-              <div
-                key={name}
-                onClick={() => setColor(hex)}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  backgroundColor: numToCssHex(hex),
-                  border: color === hex ? "3px solid #fff" : "2px solid rgba(255,255,255,0.5)",
-                  cursor: "pointer",
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
-                }}
-                title={name}
-              />
-            ))}
-          </div>
-
-          {/* Tienda de Sombreros */}
-          <h3 style={{ color: 'white', marginBottom: '15px' }}>👒 Sombreros Disponibles</h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
+            display: 'flex',
             gap: '10px',
-            marginBottom: '25px'
+            justifyContent: 'center',
+            marginBottom: '20px'
           }}>
-            {hats.map(hat => (
-              <button
-                key={hat.id}
-                onClick={() => hat.unlocked && setSelectedHat(hat)}
-                disabled={!hat.unlocked}
-                style={{
-                  padding: '10px',
-                  background: hat.unlocked ? 
-                    (selectedHat?.id === hat.id ? '#00b894' : 'rgba(255,255,255,0.9)') : 
-                    'rgba(255,255,255,0.5)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: hat.unlocked ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '5px'
-                }}
-              >
-                <span style={{ fontSize: '20px' }}>{hat.name.split(' ')[0]}</span>
-                <div style={{ fontSize: '12px', color: hat.unlocked ? '#666' : '#999' }}>
-                  {hat.unlocked ? '✅ Desbloqueado' : `Requiere ${hat.cost} puntos`}
-                </div>
-              </button>
-            ))}
+            <button
+              onClick={() => setActiveTab('collection')}
+              style={{
+                padding: '10px 20px',
+                background: activeTab === 'collection' ? '#00b894' : 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🎩 Mi Colección
+            </button>
+            <button
+              onClick={() => setActiveTab('shop')}
+              style={{
+                padding: '10px 20px',
+                background: activeTab === 'shop' ? '#00b894' : 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🛒 Tienda
+            </button>
+            <button
+              onClick={() => setActiveTab('color')}
+              style={{
+                padding: '10px 20px',
+                background: activeTab === 'color' ? '#00b894' : 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🎨 Color
+            </button>
           </div>
+
+          {/* Contenido de Pestañas */}
+          {activeTab === 'collection' && (
+            <div>
+              <h3 style={{ color: 'white', marginBottom: '15px' }}>🎩 Mi Colección de Sombreros</h3>
+              {ownedHatsList.length > 0 ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '15px',
+                  marginBottom: '25px'
+                }}>
+                  {ownedHatsList.map(hat => (
+                    <div
+                      key={hat.id}
+                      style={{
+                        background: selectedHat?.id === hat.id ? '#ffd700' : '#00b894',
+                        padding: '15px',
+                        borderRadius: '12px',
+                        border: selectedHat?.id === hat.id ? '3px solid #ff6b00' : '2px solid rgba(255,255,255,0.3)',
+                        textAlign: 'center',
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+                        {hat.name.split(' ')[0]}
+                      </div>
+                      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                        {hat.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                        {hat.description}
+                      </div>
+                      <button
+                        onClick={() => equipHat(hat)}
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          background: selectedHat?.id === hat.id ? '#28a745' : '#3498db',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {selectedHat?.id === hat.id ? '✅ Equipado' : '🎯 Equipar'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  background: 'rgba(255,255,255,0.9)',
+                  padding: '20px',
+                  borderRadius: '10px',
+                  marginBottom: '20px'
+                }}>
+                  <p style={{ margin: 0, color: '#666' }}>
+                    🎩 Aún no tienes sombreros. ¡Visita la tienda para adquirir tu primer sombrero!
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'shop' && (
+            <div>
+              <h3 style={{ color: 'white', marginBottom: '15px' }}>🛒 Tienda de Sombreros</h3>
+              
+              {/* Sombreros disponibles para comprar */}
+              {availableHatsList.length > 0 && (
+                <div>
+                  <h4 style={{ color: 'white', marginBottom: '10px' }}>Disponibles para comprar</h4>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '15px',
+                    marginBottom: '20px'
+                  }}>
+                    {availableHatsList.map(hat => (
+                      <div
+                        key={hat.id}
+                        style={{
+                          background: 'rgba(255,255,255,0.9)',
+                          padding: '15px',
+                          borderRadius: '12px',
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          textAlign: 'center'
+                        }}
+                      >
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+                          {hat.name.split(' ')[0]}
+                        </div>
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                          {hat.name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                          {hat.description}
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
+                          {hat.currency === "points" ? `🧠 ${hat.cost} puntos` : `💰 ${hat.cost} monedas`}
+                        </div>
+                        <button
+                          onClick={() => purchaseHat(hat)}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            background: '#e67e22',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          🛒 Comprar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sombreros bloqueados */}
+              {lockedHatsList.length > 0 && (
+                <div>
+                  <h4 style={{ color: 'white', marginBottom: '10px' }}>Próximamente</h4>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '15px'
+                  }}>
+                    {lockedHatsList.map(hat => (
+                      <div
+                        key={hat.id}
+                        style={{
+                          background: 'rgba(255,255,255,0.5)',
+                          padding: '15px',
+                          borderRadius: '12px',
+                          border: '2px solid rgba(255,255,255,0.2)',
+                          textAlign: 'center',
+                          opacity: 0.7
+                        }}
+                      >
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+                          {hat.name.split(' ')[0]}
+                        </div>
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                          {hat.name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                          {hat.description}
+                        </div>
+                        <div style={{
+                          padding: '8px',
+                          background: '#95a5a6',
+                          color: 'white',
+                          borderRadius: '6px',
+                          fontSize: '12px'
+                        }}>
+                          {hat.currency === "points" 
+                            ? `🔒 Necesitas ${hat.cost} puntos` 
+                            : `🔒 Necesitas ${hat.cost} monedas`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'color' && (
+            <div>
+              <h3 style={{ color: 'white', marginBottom: '15px' }}>🎨 Cambiar Color</h3>
+              <div style={{
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                marginBottom: '25px'
+              }}>
+                {Object.entries(colors).map(([name, hex]) => (
+                  <div
+                    key={name}
+                    onClick={() => setColor(hex)}
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: "50%",
+                      backgroundColor: numToCssHex(hex),
+                      border: color === hex ? "3px solid #fff" : "2px solid rgba(255,255,255,0.5)",
+                      cursor: "pointer",
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                      transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    title={name}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Botones de Acción */}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -706,7 +1270,7 @@ export default function App() {
   };
 
   // ---------------------------
-  // RENDERIZAR OTROS JUGADORES
+  // RENDERIZAR OTROS JUGADORES - MEJORADO CON SOMBREROS
   // ---------------------------
   const renderOtherPlayers = () => {
     const currentPlayers = Object.values(otherPlayers)
@@ -736,6 +1300,56 @@ export default function App() {
                 <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.18" />
               </filter>
             </defs>
+            
+            {/* Sombrero de otros jugadores - MEJORADO */}
+            {player.selectedHat && (
+              <g id="hat" transform="translate(0, -5)">
+                {player.selectedHat.id === 1 && ( // Gorro de Graduado
+                  <>
+                    <rect x="20" y="15" width="60" height="12" fill="#1a1a1a" />
+                    <rect x="25" y="27" width="50" height="6" fill="#0f0f0f" />
+                    <path d="M25 15 Q50 5 75 15" fill="none" stroke="#ffd700" strokeWidth="3" />
+                  </>
+                )}
+                {player.selectedHat.id === 2 && ( // Corona
+                  <>
+                    <path d="M25 20 L35 12 L45 20 L43 25 L57 25 L55 20 L65 12 L75 20 L70 32 L30 32 Z" fill="#ffd700" stroke="#ff6b00" strokeWidth="1.5" />
+                    <circle cx="35" cy="18" r="2" fill="#ff6b00" />
+                    <circle cx="50" cy="15" r="2" fill="#ff6b00" />
+                    <circle cx="65" cy="18" r="2" fill="#ff6b00" />
+                  </>
+                )}
+                {player.selectedHat.id === 3 && ( // Sombrero de Copa
+                  <>
+                    <rect x="25" y="10" width="50" height="6" fill="#2c2c2c" />
+                    <ellipse cx="50" cy="20" rx="30" ry="8" fill="#1a1a1a" />
+                    <rect x="40" y="20" width="20" height="2" fill="#333" />
+                  </>
+                )}
+                {player.selectedHat.id === 4 && ( // Gorra Deportiva
+                  <>
+                    <path d="M20 18 Q50 8 80 18 L75 28 L25 28 Z" fill="#e74c3c" />
+                    <rect x="30" y="18" width="40" height="4" fill="#c0392b" />
+                    <rect x="45" y="22" width="10" height="3" fill="#fff" />
+                  </>
+                )}
+                {player.selectedHat.id === 5 && ( // Casco de Seguridad
+                  <>
+                    <path d="M25 15 Q50 5 75 15 Q75 30 50 35 Q25 30 25 15" fill="#e74c3c" />
+                    <rect x="40" y="20" width="20" height="8" fill="#2c3e50" />
+                    <rect x="45" y="28" width="10" height="2" fill="#34495e" />
+                  </>
+                )}
+                {player.selectedHat.id === 6 && ( // Gorra Béisbol
+                  <>
+                    <path d="M20 17 Q50 7 80 17 L75 27 L25 27 Z" fill="#3498db" />
+                    <rect x="30" y="17" width="40" height="4" fill="#2980b9" />
+                    <path d="M45 21 L55 21 L55 24 L45 24 Z" fill="#fff" />
+                  </>
+                )}
+              </g>
+            )}
+            
             <g id="body">
               <circle
                 cx="50"
@@ -1006,7 +1620,7 @@ export default function App() {
     }
   };
 
-  // ---------- INITIALIZE p5 + Phaser ----------
+  // ---------- INITIALIZE p5 + Phaser - MEJORADO SIN PUERTAS ----------
   useEffect(() => {
     if (step === "world" && !phaserRef.current) {
       // --- p5 sketch ---
@@ -1022,7 +1636,7 @@ export default function App() {
           s.noStroke();
           
           if (currentMap === "kitchen" || currentMap.startsWith("casa_")) {
-            // Cocina o Casa Personal
+            // Cocina o Casa Personal (sin cambios)
             s.background("#e9f3fb");
             s.fill("#f2e9dc");
             s.rect(0, 0, W, 220);
@@ -1047,11 +1661,11 @@ export default function App() {
             if (currentMap.startsWith("casa_")) {
               s.push();
               s.fill("#ffeb3b");
-              s.rect(600, 100, 80, 80, 10); // Cuadro en la pared
+              s.rect(600, 100, 80, 80, 10);
               s.fill("#4caf50");
-              s.rect(100, 350, 120, 60, 5); // Sofá
+              s.rect(100, 350, 120, 60, 5);
               s.fill("#8bc34a");
-              s.rect(650, 350, 100, 40, 5); // Mesa pequeña
+              s.rect(650, 350, 100, 40, 5);
               s.fill("#2196f3");
               s.textSize(16);
               s.textAlign(s.LEFT, s.TOP);
@@ -1072,10 +1686,10 @@ export default function App() {
             s.rect(470, 350, 18, 60, 4);
             s.pop();
 
-            // Estufa (pegada a la izquierda)
+            // Estufa
             s.push();
             s.fill("#c7c7c7");
-            s.rect(20, 280, 140, 120, 6); // Movida más a la izquierda
+            s.rect(20, 280, 140, 120, 6);
             s.fill("#333");
             s.rect(20, 250, 100, 20, 4);
             s.fill("#8b0000");
@@ -1098,31 +1712,14 @@ export default function App() {
             s.rect(700, 200, 30, 30, 6);
             s.pop();
 
-            // Puerta Biblioteca
-            s.push();
-            s.fill("#8B4513");
-            s.rect(700, 160, 60, 80, 5);
-            s.fill("#654321");
-            s.rect(730, 200, 8, 4);
-            s.pop();
-
-            // Puerta Salón Socrático
-            s.push();
-            s.fill("#8B4513");
-            s.rect(100, 160, 60, 80, 5);
-            s.fill("#654321");
-            s.rect(130, 200, 8, 4);
-            s.pop();
-
           } else if (currentMap === "library") {
-            // Biblioteca
+            // Biblioteca (sin puertas)
             s.background("#2c3e50");
             
             // Estantes de libros
             s.fill("#8B4513");
             for (let i = 0; i < 5; i++) {
               s.rect(100 + i * 120, 100, 80, 200, 5);
-              // Libros
               s.fill("#e74c3c"); s.rect(105 + i * 120, 110, 70, 15, 2);
               s.fill("#3498db"); s.rect(105 + i * 120, 130, 70, 15, 2);
               s.fill("#f1c40f"); s.rect(105 + i * 120, 150, 70, 15, 2);
@@ -1149,62 +1746,78 @@ export default function App() {
             s.textAlign(s.CENTER, s.CENTER);
             s.text("📝 Área de Quizzes", 400, 240);
             
-            // Puerta de regreso
-            s.fill("#8B4513");
-            s.rect(50, 300, 60, 80, 5);
-            s.fill("#fff");
-            s.textSize(12);
-            s.text("Salir", 80, 340);
           } else if (currentMap === "socratic") {
-            // SALÓN SOCRÁTICO MEJORADO
-            s.background("#87CEEB");
-            s.fill("#7CFC00");
+            // SALÓN SOCRÁTICO COMPLETAMENTE REDISEÑADO - SIN PUERTAS
+            s.background("#4a708b"); // Cielo azul oscuro
+            
+            // Suelo con patrón de mosaico estilo Zelda
+            s.fill("#8fbc8f"); // Verde bosque
             s.rect(0, 400, 800, 200);
             
-            // Columnas griegas mejoradas
-            for (let i = 0; i < 6; i++) {
-              const x = 100 + i * 120;
-              s.fill("#F5F5DC");
-              s.rect(x, 200, 25, 200);
-              s.fill("#D2B48C");
-              s.rect(x - 5, 200, 35, 20);
-              s.rect(x - 2, 395, 29, 10);
+            // Patrón de suelo (cuadrícula)
+            s.stroke("#7a9f7a");
+            s.strokeWeight(1);
+            for (let x = 0; x < 800; x += 40) {
+              s.line(x, 400, x, 600);
+            }
+            for (let y = 400; y < 600; y += 40) {
+              s.line(0, y, 800, y);
             }
             
-            // Estatuas de Sócrates (como personajes jugables)
-            s.fill("#808080");
-            s.ellipse(200, 320, 60, 80);
-            s.fill("#606060");
-            s.rect(170, 360, 60, 80);
-            s.fill("#404040");
-            s.triangle(190, 310, 200, 330, 210, 310);
+            // Columnas griegas (solo decorativas, sin colisiones)
+            s.noStroke();
+            s.fill("#f0e68c"); // Amarillo piedra
+            for (let i = 0; i < 4; i++) {
+              const x = 150 + i * 200;
+              // Base
+              s.rect(x - 10, 300, 20, 100);
+              // Capitel
+              s.rect(x - 15, 300, 30, 10);
+              // Base inferior
+              s.rect(x - 12, 395, 24, 5);
+            }
             
-            // Bancas de conversación mejoradas
-            s.fill("#8B4513");
-            s.rect(400, 350, 300, 20, 5);
-            s.rect(380, 350, 20, 80);
-            s.rect(700, 350, 20, 80);
+            // Estatuas decorativas (sin colisiones)
+            s.fill("#a9a9a9");
+            // Estatua izquierda
+            s.ellipse(100, 320, 40, 50);
+            s.rect(80, 350, 40, 40);
+            // Estatua derecha
+            s.ellipse(700, 320, 40, 50);
+            s.rect(680, 350, 40, 40);
             
-            // Área central para discusiones
-            s.fill("#FFD700");
-            s.circle(550, 300, 80);
-            s.fill("#FFF");
-            s.textSize(16);
+            // Área central de discusión (círculo de piedra)
+            s.fill("#daa520");
+            s.circle(400, 350, 120);
+            s.fill("#b8860b");
+            s.circle(400, 350, 100);
+            s.fill("#ffd700");
+            s.textSize(20);
             s.textAlign(s.CENTER, s.CENTER);
-            s.text("💬", 550, 300);
+            s.text("💬", 400, 350);
             
-            // Fuente decorativa
-            s.fill("#B0E0E6");
-            s.circle(700, 500, 60);
-            s.fill("#87CEEB");
-            s.circle(700, 480, 40);
+            // Bancas de piedra (decorativas)
+            s.fill("#cd853f");
+            // Banca superior
+            s.rect(200, 250, 120, 15, 5);
+            s.rect(480, 250, 120, 15, 5);
+            // Banca inferior
+            s.rect(200, 450, 120, 15, 5);
+            s.rect(480, 450, 120, 15, 5);
             
-            // Puerta de regreso
-            s.fill("#8B4513");
-            s.rect(50, 300, 60, 80, 5);
-            s.fill("#fff");
-            s.textSize(12);
-            s.text("Salir", 80, 340);
+            // Lámparas antiguas
+            s.fill("#8b4513");
+            s.rect(100, 450, 10, 30);
+            s.rect(690, 450, 10, 30);
+            s.fill("#ffa500");
+            s.circle(105, 445, 15);
+            s.circle(695, 445, 15);
+            
+            // Decoración de plantas
+            s.fill("#2e8b57");
+            s.ellipse(750, 500, 30, 20);
+            s.ellipse(50, 500, 30, 20);
+            
           }
         };
       };
@@ -1228,7 +1841,7 @@ export default function App() {
       let player;
       let cursors;
       let table;
-      let keyA, keyE;
+      let keyA;
       let lastSentPosition = { x: 0, y: 0 };
 
       function preload() {}
@@ -1237,6 +1850,7 @@ export default function App() {
         const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
         this.physics.add.existing(floor, true);
 
+        // Configuración de colisiones por mapa - SIN PUERTAS
         const walls = [
           this.add.rectangle(400, 5, 800, 10, 0x000000, 0),
           this.add.rectangle(400, 595, 800, 10, 0x000000, 0),
@@ -1245,27 +1859,39 @@ export default function App() {
         ];
         walls.forEach((w) => this.physics.add.existing(w, true));
 
-        table = this.add.rectangle(400, 300, 240, 100, 0x000000, 0);
-        this.physics.add.existing(table, true);
+        let obstacles = [...walls];
 
-        const chair1 = this.add.rectangle(330, 350, 35, 35, 0x000000, 0);
-        const chair2 = this.add.rectangle(470, 350, 35, 35, 0x000000, 0);
-        this.physics.add.existing(chair1, true);
-        this.physics.add.existing(chair2, true);
+        if (currentMap === "kitchen" || currentMap.startsWith("casa_")) {
+          // Obstáculos para cocina/casa
+          table = this.add.rectangle(400, 300, 240, 100, 0x000000, 0);
+          this.physics.add.existing(table, true);
 
-        const stove = this.add.rectangle(20, 280, 150, 130, 0x000000, 0);
-        this.physics.add.existing(stove, true);
+          const chair1 = this.add.rectangle(330, 350, 35, 35, 0x000000, 0);
+          const chair2 = this.add.rectangle(470, 350, 35, 35, 0x000000, 0);
+          this.physics.add.existing(chair1, true);
+          this.physics.add.existing(chair2, true);
 
-        const libraryDoor = this.add.rectangle(700, 200, 70, 90, 0x000000, 0);
-        this.physics.add.existing(libraryDoor, true);
+          const stove = this.add.rectangle(20, 280, 150, 130, 0x000000, 0);
+          this.physics.add.existing(stove, true);
 
-        const socraticDoor = this.add.rectangle(100, 200, 70, 90, 0x000000, 0);
-        this.physics.add.existing(socraticDoor, true);
+          obstacles = [...obstacles, table, chair1, chair2, stove];
+        } else if (currentMap === "socratic") {
+          // SALÓN SOCRÁTICO: Solo bordes como obstáculos (estilo Zelda)
+          console.log("🎮 Salón Socrático: Sin obstáculos internos, solo bordes");
+        } else if (currentMap === "library") {
+          // Biblioteca: algunos obstáculos
+          const bookshelf1 = this.add.rectangle(200, 200, 160, 40, 0x000000, 0);
+          const bookshelf2 = this.add.rectangle(600, 200, 160, 40, 0x000000, 0);
+          const computerArea = this.add.rectangle(400, 425, 600, 50, 0x000000, 0);
+          
+          this.physics.add.existing(bookshelf1, true);
+          this.physics.add.existing(bookshelf2, true);
+          this.physics.add.existing(computerArea, true);
+          
+          obstacles = [...obstacles, bookshelf1, bookshelf2, computerArea];
+        }
 
-        const exitDoor = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
-        this.physics.add.existing(exitDoor, true);
-
-        // Posición inicial cambiada para evitar la estufa
+        // Posición inicial
         player = this.add.circle(150, 300, 16, 0xffffff, 0);
         this.physics.add.existing(player);
         player.body.setCollideWorldBounds(true, 1, 1, true);
@@ -1275,49 +1901,29 @@ export default function App() {
         player.body.setDrag(800, 800);
         player.body.setMaxVelocity(200, 200);
 
-        const obstacles = [...walls, table, chair1, chair2, stove, libraryDoor, exitDoor, socraticDoor];
+        // Configurar colisiones
         obstacles.forEach((obs) => {
           this.physics.add.collider(player, obs, null, null, this);
         });
 
-        const exclamation = this.add
-          .text(table.x, table.y - 70, "!", {
-            font: "48px Arial",
-            fill: "#ff0000",
-            fontStyle: "bold",
-            stroke: "#ffffff",
-            strokeThickness: 4
-          })
-          .setOrigin(0.5, 0.5)
-          .setDepth(1000);
-        
-        window.tableExclamation = exclamation;
-
-        const librarySign = this.add
-          .text(libraryDoor.x, libraryDoor.y - 70, "📚", {
-            font: "32px Arial",
-            stroke: "#000000",
-            strokeThickness: 3
-          })
-          .setOrigin(0.5, 0.5)
-          .setDepth(1000);
-        
-        window.librarySign = librarySign;
-
-        const socraticSign = this.add
-          .text(socraticDoor.x, socraticDoor.y - 70, "🏛️", {
-            font: "32px Arial",
-            stroke: "#000000",
-            strokeThickness: 3
-          })
-          .setOrigin(0.5, 0.5)
-          .setDepth(1000);
-        
-        window.socraticSign = socraticSign;
+        // Indicador de interacción para cocina/casa
+        if (currentMap === "kitchen" || currentMap.startsWith("casa_")) {
+          const exclamation = this.add
+            .text(table.x, table.y - 70, "!", {
+              font: "48px Arial",
+              fill: "#ff0000",
+              fontStyle: "bold",
+              stroke: "#ffffff",
+              strokeThickness: 4
+            })
+            .setOrigin(0.5, 0.5)
+            .setDepth(1000);
+          
+          window.tableExclamation = exclamation;
+        }
 
         cursors = this.input.keyboard.createCursorKeys();
         keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-        keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
         window.phaserScene = this;
         window.phaserPlayer = player;
@@ -1336,60 +1942,20 @@ export default function App() {
         if (cursors.up.isDown) player.body.setVelocityY(-speed);
         if (cursors.down.isDown) player.body.setVelocityY(speed);
 
-        // Interacción con mesa
-        const distToTable = Phaser.Math.Distance.Between(
-          player.x, player.y, table.x, table.y
-        );
-        if (distToTable < 90 && (currentMap === "kitchen" || currentMap.startsWith("casa_"))) {
-          window.nearTable = true;
-          if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
-            const ev = new CustomEvent("openSandwich");
-            window.dispatchEvent(ev);
+        // Interacción con mesa (solo en cocina/casa)
+        if (currentMap === "kitchen" || currentMap.startsWith("casa_")) {
+          const distToTable = Phaser.Math.Distance.Between(
+            player.x, player.y, 400, 300
+          );
+          if (distToTable < 90) {
+            window.nearTable = true;
+            if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
+              const ev = new CustomEvent("openSandwich");
+              window.dispatchEvent(ev);
+            }
+          } else {
+            window.nearTable = false;
           }
-        } else {
-          window.nearTable = false;
-        }
-
-        // Interacción con puerta biblioteca
-        const distToLibrary = Phaser.Math.Distance.Between(
-          player.x, player.y, 700, 200
-        );
-        if (distToLibrary < 60 && (currentMap === "kitchen" || currentMap.startsWith("casa_"))) {
-          window.nearLibraryDoor = true;
-          if (Phaser.Input.Keyboard.JustDown(keyE)) {
-            const ev = new CustomEvent("enterLibrary");
-            window.dispatchEvent(ev);
-          }
-        } else {
-          window.nearLibraryDoor = false;
-        }
-
-        // Interacción con puerta Salón Socrático
-        const distToSocratic = Phaser.Math.Distance.Between(
-          player.x, player.y, 100, 200
-        );
-        if (distToSocratic < 60 && (currentMap === "kitchen" || currentMap.startsWith("casa_"))) {
-          window.nearSocraticDoor = true;
-          if (Phaser.Input.Keyboard.JustDown(keyE)) {
-            const ev = new CustomEvent("enterSocratic");
-            window.dispatchEvent(ev);
-          }
-        } else {
-          window.nearSocraticDoor = false;
-        }
-
-        // Interacción con puerta salida
-        const distToExit = Phaser.Math.Distance.Between(
-          player.x, player.y, 80, 340
-        );
-        if (distToExit < 60 && (currentMap === "library" || currentMap === "socratic")) {
-          window.nearExitDoor = true;
-          if (Phaser.Input.Keyboard.JustDown(keyE)) {
-            const ev = new CustomEvent("exitLibrary");
-            window.dispatchEvent(ev);
-          }
-        } else {
-          window.nearExitDoor = false;
         }
 
         // Enviar posición al servidor
@@ -1418,14 +1984,6 @@ export default function App() {
             window.tableExclamation.setScale(1);
           }
         }
-        
-        if (window.librarySign) {
-          window.librarySign.setVisible(currentMap === "kitchen" || currentMap.startsWith("casa_"));
-        }
-        
-        if (window.socraticSign) {
-          window.socraticSign.setVisible(currentMap === "kitchen" || currentMap.startsWith("casa_"));
-        }
       }
 
       phaserRef.current = new Phaser.Game(config);
@@ -1443,19 +2001,10 @@ export default function App() {
             svgEl.style.top = `${y}px`;
 
             const nearTable = !!window.nearTable;
-            const nearLibrary = !!window.nearLibraryDoor;
-            const nearSocratic = !!window.nearSocraticDoor;
-            const nearExit = !!window.nearExitDoor;
             
             const ev1 = new CustomEvent("nearTableUpdate", { detail: { near: nearTable } });
-            const ev2 = new CustomEvent("nearLibraryUpdate", { detail: { near: nearLibrary } });
-            const ev3 = new CustomEvent("nearSocraticUpdate", { detail: { near: nearSocratic } });
-            const ev4 = new CustomEvent("nearExitUpdate", { detail: { near: nearExit } });
             
             window.dispatchEvent(ev1);
-            window.dispatchEvent(ev2);
-            window.dispatchEvent(ev3);
-            window.dispatchEvent(ev4);
           }
         } catch (err) {}
         rafRef.current = requestAnimationFrame(updateSvg);
@@ -1473,49 +2022,13 @@ export default function App() {
       const nearTableListener = (e) => {
         setShowPressAHint(e.detail.near && !sandwichDone && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
       };
-      
-      const nearLibraryListener = (e) => {
-        setShowPressEHint(e.detail.near && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
-      };
-      
-      const nearSocraticListener = (e) => {
-        setShowPressEHint(e.detail.near && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
-      };
-      
-      const enterLibraryListener = () => {
-        handleEnterLibrary();
-      };
-      
-      const enterSocraticListener = () => {
-        handleEnterSocratic();
-      };
-      
-      const exitLibraryListener = () => {
-        handleExitToKitchen();
-      };
-
-      const nearExitListener = (e) => {
-        setNearExitDoor(e.detail.near);
-      };
 
       window.addEventListener("openSandwich", openListener);
       window.addEventListener("nearTableUpdate", nearTableListener);
-      window.addEventListener("nearLibraryUpdate", nearLibraryListener);
-      window.addEventListener("nearSocraticUpdate", nearSocraticListener);
-      window.addEventListener("enterLibrary", enterLibraryListener);
-      window.addEventListener("enterSocratic", enterSocraticListener);
-      window.addEventListener("exitLibrary", exitLibraryListener);
-      window.addEventListener("nearExitUpdate", nearExitListener);
 
       const cleanup = () => {
         window.removeEventListener("openSandwich", openListener);
         window.removeEventListener("nearTableUpdate", nearTableListener);
-        window.removeEventListener("nearLibraryUpdate", nearLibraryListener);
-        window.removeEventListener("nearSocraticUpdate", nearSocraticListener);
-        window.removeEventListener("enterLibrary", enterLibraryListener);
-        window.removeEventListener("enterSocratic", enterSocraticListener);
-        window.removeEventListener("exitLibrary", exitLibraryListener);
-        window.removeEventListener("nearExitUpdate", nearExitListener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
       phaserRef.currentCleanup = cleanup;
@@ -1875,7 +2388,7 @@ export default function App() {
             }}
           />
           
-          {/* JUGADOR PRINCIPAL */}
+          {/* JUGADOR PRINCIPAL - MEJORADO CON SOMBRERO ADELANTE */}
           <div
             ref={svgRef}
             id="svg-player"
@@ -1908,13 +2421,8 @@ export default function App() {
                   />
                 </filter>
               </defs>
-              {/* Sombrero seleccionado */}
-              {selectedHat && (
-                <g id="hat">
-                  <circle cx="50" cy="30" r="25" fill="#4a4a4a" />
-                  <rect x="30" y="35" width="40" height="8" fill="#333" />
-                </g>
-              )}
+              
+              {/* Cuerpo del personaje */}
               <g id="body">
                 <circle
                   cx="50"
@@ -1937,6 +2445,56 @@ export default function App() {
                   strokeLinecap="round"
                 />
               </g>
+              
+              {/* Sombrero seleccionado - MEJORADO: posición más adelante */}
+              {selectedHat && (
+                <g id="hat" transform="translate(0, -5)">
+                  {selectedHat.id === 1 && ( // Gorro de Graduado - MEJORADO
+                    <>
+                      <rect x="20" y="15" width="60" height="12" fill="#1a1a1a" />
+                      <rect x="25" y="27" width="50" height="6" fill="#0f0f0f" />
+                      <path d="M25 15 Q50 5 75 15" fill="none" stroke="#ffd700" strokeWidth="3" />
+                    </>
+                  )}
+                  {selectedHat.id === 2 && ( // Corona - MEJORADO
+                    <>
+                      <path d="M25 20 L35 12 L45 20 L43 25 L57 25 L55 20 L65 12 L75 20 L70 32 L30 32 Z" fill="#ffd700" stroke="#ff6b00" strokeWidth="1.5" />
+                      <circle cx="35" cy="18" r="2" fill="#ff6b00" />
+                      <circle cx="50" cy="15" r="2" fill="#ff6b00" />
+                      <circle cx="65" cy="18" r="2" fill="#ff6b00" />
+                    </>
+                  )}
+                  {selectedHat.id === 3 && ( // Sombrero de Copa - MEJORADO
+                    <>
+                      <rect x="25" y="10" width="50" height="6" fill="#2c2c2c" />
+                      <ellipse cx="50" cy="20" rx="30" ry="8" fill="#1a1a1a" />
+                      <rect x="40" y="20" width="20" height="2" fill="#333" />
+                    </>
+                  )}
+                  {selectedHat.id === 4 && ( // Gorra Deportiva - MEJORADO
+                    <>
+                      <path d="M20 18 Q50 8 80 18 L75 28 L25 28 Z" fill="#e74c3c" />
+                      <rect x="30" y="18" width="40" height="4" fill="#c0392b" />
+                      <rect x="45" y="22" width="10" height="3" fill="#fff" />
+                    </>
+                  )}
+                  {selectedHat.id === 5 && ( // Casco de Seguridad - MEJORADO
+                    <>
+                      <path d="M25 15 Q50 5 75 15 Q75 30 50 35 Q25 30 25 15" fill="#e74c3c" />
+                      <rect x="40" y="20" width="20" height="8" fill="#2c3e50" />
+                      <rect x="45" y="28" width="10" height="2" fill="#34495e" />
+                    </>
+                  )}
+                  {selectedHat.id === 6 && ( // Gorra Béisbol - MEJORADO
+                    <>
+                      <path d="M20 17 Q50 7 80 17 L75 27 L25 27 Z" fill="#3498db" />
+                      <rect x="30" y="17" width="40" height="4" fill="#2980b9" />
+                      <path d="M45 21 L55 21 L55 24 L45 24 Z" fill="#fff" />
+                    </>
+                  )}
+                </g>
+              )}
+              
               <g id="arms" transform="translate(0,0)">
                 <line
                   x1="22"
@@ -1980,7 +2538,7 @@ export default function App() {
             </svg>
           </div>
 
-          {/* OTROS JUGADORES */}
+          {/* OTROS JUGADORES - MEJORADO CON SOMBREROS VISIBLES */}
           {renderOtherPlayers()}
         </div>
       </div>
@@ -2167,41 +2725,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Mensaje de E para entrar a la biblioteca o salón socrático */}
-      {showPressEHint && (currentMap === "kitchen" || currentMap.startsWith("casa_")) && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "#16a085",
-            color: "#fff",
-            padding: "8px 12px",
-            borderRadius: 8,
-          }}
-        >
-          Presiona <b>E</b> para entrar
-        </div>
-      )}
-
-      {nearExitDoor && (currentMap === "socratic" || currentMap === "library") && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "#8B4513",
-            color: "#fff",
-            padding: "8px 12px",
-            borderRadius: 8,
-          }}
-        >
-          Presiona <b>E</b> para volver a la cocina
-        </div>
-      )}
-
       {/* Mensaje de sandwich completado */}
       {showSandwichMessage && (currentMap === "kitchen" || currentMap.startsWith("casa_")) && (
         <div
@@ -2295,7 +2818,7 @@ export default function App() {
               📝 Tomar Quiz CS (Requiere 10 puntos)
             </button>
             
-            <button onClick={handleExitToKitchen} style={{
+            <button onClick={() => setCurrentMap(playerHouse || "kitchen")} style={{
               padding: '10px',
               borderRadius: '5px',
               backgroundColor: '#e74c3c',

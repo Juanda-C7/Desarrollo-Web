@@ -40,14 +40,12 @@ io.on("connection", (socket) => {
       x: playerData.x,
       y: playerData.y,
       currentMap: playerData.currentMap,
+      selectedHat: playerData.selectedHat || null, // Guardar información del sombrero
       message: "",
       messageTimestamp: 0
     });
 
-    console.log(`🎮 ${safeUsername} se unió al juego en ${playerData.currentMap} en posición:`, { 
-      x: playerData.x, 
-      y: playerData.y 
-    });
+    console.log(`🎮 ${safeUsername} se unió al juego en ${playerData.currentMap} con sombrero:`, playerData.selectedHat);
     
     // Notificar a todos los jugadores
     socket.broadcast.emit("player-joined", connectedPlayers.get(socket.id));
@@ -79,6 +77,25 @@ io.on("connection", (socket) => {
       });
       
       console.log(`📤 Enviando movimiento de ${player.username} a ${connectedPlayers.size - 1} jugadores`);
+    }
+  });
+
+  // Cambio de sombrero - CORREGIDO
+  socket.on("player-hat-change", (data) => {
+    const player = connectedPlayers.get(socket.id);
+    if (player) {
+      console.log(`🎩 ${player.username} cambió sombrero a:`, data.selectedHat);
+      
+      player.selectedHat = data.selectedHat;
+      
+      // Notificar a todos los demás jugadores
+      socket.broadcast.emit("player-hat-changed", {
+        id: socket.id,
+        username: player.username,
+        selectedHat: data.selectedHat
+      });
+      
+      console.log(`📤 Enviando cambio de sombrero de ${player.username} a ${connectedPlayers.size - 1} jugadores`);
     }
   });
 
@@ -133,13 +150,15 @@ io.on("connection", (socket) => {
 
 // Endpoint para obtener estadísticas
 app.get("/stats", (req, res) => {
+  const players = Array.from(connectedPlayers.values());
   res.json({
     connectedPlayers: connectedPlayers.size,
-    players: Array.from(connectedPlayers.values()).map(p => ({
+    players: players.map(p => ({
       username: p.username,
       map: p.currentMap,
       x: p.x,
-      y: p.y
+      y: p.y,
+      hat: p.selectedHat ? p.selectedHat.name : "Ninguno"
     }))
   });
 });
@@ -158,6 +177,7 @@ const PORT = 4002;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🎮 Servidor de Socket.io ejecutándose en puerto ${PORT}`);
   console.log(`💬 Chat y sistema multijugador activo`);
+  console.log(`🎩 Sistema de sombreros multijugador activado`);
   console.log(`🌐 Aceptando conexiones de cualquier origen`);
   console.log(`📡 Para conectar desde otra computadora usa: http://TU_IP_LOCAL:${PORT}`);
   console.log(`🎯 Los clientes pueden conectar con: http://localhost:3000/?server=TU_IP`);
