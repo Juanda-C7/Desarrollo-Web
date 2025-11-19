@@ -11,12 +11,12 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
-  const [color, setColor] = useState(null);
+  const [color, setColor] = useState(0xff0000);
   const [showSandwichMinigame, setShowSandwichMinigame] = useState(false);
   const [showPressAHint, setShowPressAHint] = useState(false);
   const [sandwich, setSandwich] = useState([]);
-  const [sandwichDone, setSandwichDone] = useState(null);
-  const [money, setMoney] = useState(null);
+  const [sandwichDone, setSandwichDone] = useState(false);
+  const [money, setMoney] = useState(0);
   const [currentMap, setCurrentMap] = useState("kitchen");
   const [educationalPoints, setEducationalPoints] = useState(0);
   const [currentLesson, setCurrentLesson] = useState(null);
@@ -25,6 +25,12 @@ export default function App() {
   const [showSandwichMessage, setShowSandwichMessage] = useState(false);
   const [nearExitDoor, setNearExitDoor] = useState(false);
   
+  // Nuevos estados para mapa y perfil
+  const [showMap, setShowMap] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [playerHouse, setPlayerHouse] = useState(null);
+  const [selectedHat, setSelectedHat] = useState(null);
+
   // Estados para logros
   const [logros, setLogros] = useState([]);
   const [misiones, setMisiones] = useState([]);
@@ -66,6 +72,15 @@ export default function App() {
 
   const SOCKET_API = `http://${serverIP}:4002`;
 
+  // Inicializar casa personal después del login
+  useEffect(() => {
+    if (step === "world" && username) {
+      const houseId = `casa_${username}`;
+      setPlayerHouse(houseId);
+      setCurrentMap(houseId);
+    }
+  }, [step, username]);
+
   // --------------------------- 
   // CONEXIÓN SOCKET PARA MULTIJUGADOR
   // --------------------------- 
@@ -88,7 +103,7 @@ export default function App() {
         newSocket.emit("join-game", {
           username,
           color,
-          x: 50,
+          x: 150,
           y: 300,
           currentMap
         });
@@ -110,7 +125,7 @@ export default function App() {
         console.log("🎮 Jugadores actuales recibidos:", players.length);
         const playersMap = {};
         players.forEach(player => {
-          if (player.id !== newSocket.id) { // No incluir al jugador actual
+          if (player.id !== newSocket.id) {
             playersMap[player.id] = player;
           }
         });
@@ -339,7 +354,7 @@ export default function App() {
   }, [username, step]);
 
   // ---------------------------
-  // SISTEMA DE CHAT MEJORADO
+  // SISTEMA DE CHAT
   // ---------------------------
   const sendMessage = () => {
     if (chatMessage.trim() && socket) {
@@ -383,20 +398,319 @@ export default function App() {
     audioService.playSuccessSound();
   };
 
-  const handleExitSocratic = () => {
+  const handleExitToKitchen = () => {
     setCurrentMap("kitchen");
     audioService.playSuccessSound();
   };
 
   // ---------------------------
-  // RENDERIZAR OTROS JUGADORES - VERSIÓN IDÉNTICA AL JUGADOR PRINCIPAL
+  // COMPONENTES DE MODALES
+  // ---------------------------
+
+  // Modal del Mapa
+  const MapModal = () => {
+    const locations = [
+      { id: playerHouse, name: "🏠 Mi Casa", icon: "🏠", description: "Tu espacio personal" },
+      { id: "library", name: "📚 Biblioteca", icon: "📚", description: "Minijuegos educativos" },
+      { id: "socratic", name: "🏛️ Salón Socrático", icon: "🏛️", description: "Área de discusión" }
+    ];
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '30px',
+          borderRadius: '20px',
+          width: '500px',
+          textAlign: 'center',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+        }}>
+          <h2 style={{ color: 'white', marginBottom: '30px' }}>🗺️ Mapa del Mundo</h2>
+          
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '15px'
+          }}>
+            {locations.map(location => (
+              <button
+                key={location.id}
+                onClick={() => {
+                  setCurrentMap(location.id);
+                  setShowMap(false);
+                  audioService.playSuccessSound();
+                }}
+                style={{
+                  padding: '15px 20px',
+                  background: 'rgba(255,255,255,0.9)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '15px',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.background = 'rgba(255,255,255,1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.background = 'rgba(255,255,255,0.9)';
+                }}
+              >
+                <span style={{ fontSize: '24px' }}>{location.icon}</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 'bold', color: '#333' }}>{location.name}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{location.description}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+          
+          <button
+            onClick={() => setShowMap(false)}
+            style={{
+              marginTop: '20px',
+              padding: '10px 20px',
+              background: '#ff6b6b',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            Cerrar Mapa
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Modal de Perfil y Personalización
+  const ProfileModal = () => {
+    const hats = [
+      { id: 1, name: "🎓 Gorro de Graduado", cost: 50, unlocked: educationalPoints >= 50 },
+      { id: 2, name: "👑 Corona", cost: 100, unlocked: educationalPoints >= 100 },
+      { id: 3, name: "🎩 Sombrero de Copa", cost: 150, unlocked: educationalPoints >= 150 },
+      { id: 4, name: "🧢 Gorra Deportiva", cost: 200, unlocked: educationalPoints >= 200 },
+      { id: 5, name: "⛑️ Casco de Seguridad", cost: 250, unlocked: educationalPoints >= 250 }
+    ];
+
+    const handleLogout = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('username');
+      setStep('login');
+      setShowProfile(false);
+      if (socket) {
+        socket.close();
+      }
+    };
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)',
+          padding: '30px',
+          borderRadius: '20px',
+          width: '600px',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ color: 'white', marginBottom: '20px' }}>👤 Perfil de {username}</h2>
+          
+          {/* Avatar Preview con Sombrero */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: '30px'
+          }}>
+            <div style={{ position: 'relative', width: '120px', height: '120px' }}>
+              <svg width="120" height="120" viewBox="0 0 100 100">
+                {/* Sombrero seleccionado */}
+                {selectedHat && (
+                  <g id="hat">
+                    <circle cx="50" cy="30" r="25" fill="#4a4a4a" />
+                    <rect x="30" y="35" width="40" height="8" fill="#333" />
+                  </g>
+                )}
+                <g id="body">
+                  <circle cx="50" cy="44" r="24" fill={numToCssHex(color)} stroke="#111" strokeWidth="1.8" />
+                  <g id="eyes">
+                    <circle cx="42" cy="40" r="3.7" fill="#000" />
+                    <circle cx="58" cy="40" r="3.7" fill="#000" />
+                  </g>
+                  <path d="M40 52 Q50 60 60 52" stroke="#111" strokeWidth="2" fill="none" strokeLinecap="round" />
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          {/* Información del Jugador */}
+          <div style={{
+            background: 'rgba(255,255,255,0.9)',
+            padding: '15px',
+            borderRadius: '10px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <span>💰 Monedas: <strong>{money}</strong></span>
+              <span>🧠 Puntos Educativos: <strong>{educationalPoints}</strong></span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>🏆 Trofeos: <strong>{trofeos.total}</strong></span>
+              <span>🎯 Logros: <strong>{logros.filter(l => l.completado).length}/{logros.length}</strong></span>
+            </div>
+          </div>
+
+          {/* Selector de Color */}
+          <h3 style={{ color: 'white', marginBottom: '15px' }}>🎨 Cambiar Color</h3>
+          <div style={{
+            display: "flex",
+            gap: "12px",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            marginBottom: '25px'
+          }}>
+            {Object.entries(colors).map(([name, hex]) => (
+              <div
+                key={name}
+                onClick={() => setColor(hex)}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  backgroundColor: numToCssHex(hex),
+                  border: color === hex ? "3px solid #fff" : "2px solid rgba(255,255,255,0.5)",
+                  cursor: "pointer",
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                }}
+                title={name}
+              />
+            ))}
+          </div>
+
+          {/* Tienda de Sombreros */}
+          <h3 style={{ color: 'white', marginBottom: '15px' }}>👒 Sombreros Disponibles</h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '10px',
+            marginBottom: '25px'
+          }}>
+            {hats.map(hat => (
+              <button
+                key={hat.id}
+                onClick={() => hat.unlocked && setSelectedHat(hat)}
+                disabled={!hat.unlocked}
+                style={{
+                  padding: '10px',
+                  background: hat.unlocked ? 
+                    (selectedHat?.id === hat.id ? '#00b894' : 'rgba(255,255,255,0.9)') : 
+                    'rgba(255,255,255,0.5)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: hat.unlocked ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>{hat.name.split(' ')[0]}</span>
+                <div style={{ fontSize: '12px', color: hat.unlocked ? '#666' : '#999' }}>
+                  {hat.unlocked ? '✅ Desbloqueado' : `Requiere ${hat.cost} puntos`}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Botones de Acción */}
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowMap(true)}
+              style={{
+                padding: '10px 20px',
+                background: '#00b894',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🗺️ Abrir Mapa
+            </button>
+            
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '10px 20px',
+                background: '#ff7675',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🚪 Cerrar Sesión
+            </button>
+            
+            <button
+              onClick={() => setShowProfile(false)}
+              style={{
+                padding: '10px 20px',
+                background: '#6c5ce7',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              ❌ Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------------------------
+  // RENDERIZAR OTROS JUGADORES
   // ---------------------------
   const renderOtherPlayers = () => {
-    // Filtrar solo jugadores en el mapa actual
     const currentPlayers = Object.values(otherPlayers)
       .filter(player => player.currentMap === currentMap);
-  
-    console.log(`🎯 Renderizando ${currentPlayers.length} jugadores en ${currentMap}`);
 
     return currentPlayers.map(player => {
       const playerX = Number(player.x) || 100;
@@ -416,7 +730,6 @@ export default function App() {
             pointerEvents: 'none'
           }}
         >
-          {/* Avatar del jugador - IDÉNTICO AL JUGADOR PRINCIPAL */}
           <svg viewBox="0 0 100 100" width="64" height="64">
             <defs>
               <filter id={`otherPlayerShadow-${player.id}`} x="-50%" y="-50%" width="200%" height="200%">
@@ -487,7 +800,6 @@ export default function App() {
             </g>
           </svg>
           
-          {/* Nombre de usuario - SIEMPRE VISIBLE */}
           <div style={{
             position: 'absolute',
             top: '-35px',
@@ -509,7 +821,6 @@ export default function App() {
             {player.username}
           </div>
           
-          {/* Mensaje de chat - SOLO SI HAY MENSAJE RECIENTE */}
           {player.message && player.messageTimestamp && (Date.now() - player.messageTimestamp < 5000) && (
             <div style={{
               position: 'absolute',
@@ -710,8 +1021,8 @@ export default function App() {
           s.push();
           s.noStroke();
           
-          if (currentMap === "kitchen") {
-            // Cocina
+          if (currentMap === "kitchen" || currentMap.startsWith("casa_")) {
+            // Cocina o Casa Personal
             s.background("#e9f3fb");
             s.fill("#f2e9dc");
             s.rect(0, 0, W, 220);
@@ -732,6 +1043,22 @@ export default function App() {
             }
             s.pop();
 
+            // En casas personales, mostrar decoración única
+            if (currentMap.startsWith("casa_")) {
+              s.push();
+              s.fill("#ffeb3b");
+              s.rect(600, 100, 80, 80, 10); // Cuadro en la pared
+              s.fill("#4caf50");
+              s.rect(100, 350, 120, 60, 5); // Sofá
+              s.fill("#8bc34a");
+              s.rect(650, 350, 100, 40, 5); // Mesa pequeña
+              s.fill("#2196f3");
+              s.textSize(16);
+              s.textAlign(s.LEFT, s.TOP);
+              s.text("🏠 Mi Casa", 20, 20);
+              s.pop();
+            }
+
             // Mesa
             s.push();
             s.noStroke();
@@ -745,21 +1072,21 @@ export default function App() {
             s.rect(470, 350, 18, 60, 4);
             s.pop();
 
-            // Estufa
+            // Estufa (pegada a la izquierda)
             s.push();
             s.fill("#c7c7c7");
-            s.rect(90, 280, 140, 120, 6);
+            s.rect(20, 280, 140, 120, 6); // Movida más a la izquierda
             s.fill("#333");
-            s.rect(90, 250, 100, 20, 4);
+            s.rect(20, 250, 100, 20, 4);
             s.fill("#8b0000");
-            s.rect(90, 260, 40, 20, 4);
+            s.rect(20, 260, 40, 20, 4);
             const t = s.millis() / 800;
             s.noFill();
             s.stroke("#ffffff88");
             s.strokeWeight(2);
             for (let i = 0; i < 3; i++) {
               const yy = 235 - ((t + i * 0.6) % 1) * 30;
-              s.ellipse(90, yy, 12, 8);
+              s.ellipse(20, yy, 12, 8);
             }
             s.pop();
 
@@ -829,69 +1156,55 @@ export default function App() {
             s.textSize(12);
             s.text("Salir", 80, 340);
           } else if (currentMap === "socratic") {
-            // SALÓN SOCRÁTICO - AIRE LIBRE
+            // SALÓN SOCRÁTICO MEJORADO
             s.background("#87CEEB");
             s.fill("#7CFC00");
             s.rect(0, 400, 800, 200);
             
-            // Estatuas de Sócrates
+            // Columnas griegas mejoradas
+            for (let i = 0; i < 6; i++) {
+              const x = 100 + i * 120;
+              s.fill("#F5F5DC");
+              s.rect(x, 200, 25, 200);
+              s.fill("#D2B48C");
+              s.rect(x - 5, 200, 35, 20);
+              s.rect(x - 2, 395, 29, 10);
+            }
+            
+            // Estatuas de Sócrates (como personajes jugables)
             s.fill("#808080");
-            s.circle(220, 280, 40);
+            s.ellipse(200, 320, 60, 80);
             s.fill("#606060");
-            s.circle(220, 340, 50);
-            
-            // Barba de Sócrates
+            s.rect(170, 360, 60, 80);
             s.fill("#404040");
-            s.triangle(200, 270, 220, 290, 240, 270);
+            s.triangle(190, 310, 200, 330, 210, 310);
             
-            // Ojos
-            s.fill("#000");
-            s.circle(210, 275, 4);
-            s.circle(230, 275, 4);
-            
-            // Toga griega
-            s.fill("#F5F5DC");
-            s.rect(180, 365, 80, 40, 5);
-            
-            // Base de la estatua
-            s.fill("#A9A9A9");
-            s.rect(180, 420, 80, 20);
-            s.fill("#333");
-            s.textSize(10);
-            s.text("SÓCRATES", 190, 410);
-            
-            // Bancas para conversación
+            // Bancas de conversación mejoradas
             s.fill("#8B4513");
-            s.rect(400, 350, 200, 20);
-            s.rect(350, 350, 20, 60);
-            s.rect(630, 350, 20, 60);
+            s.rect(400, 350, 300, 20, 5);
+            s.rect(380, 350, 20, 80);
+            s.rect(700, 350, 20, 80);
             
-            // Columnas griegas
-            s.fill("#D2B48C");
-            s.rect(100, 250, 20, 150);
-            s.rect(340, 250, 20, 150);
-            s.fill("#DEB887");
-            s.rect(95, 240, 30, 15);
-            s.rect(335, 240, 30, 15);
+            // Área central para discusiones
+            s.fill("#FFD700");
+            s.circle(550, 300, 80);
+            s.fill("#FFF");
+            s.textSize(16);
+            s.textAlign(s.CENTER, s.CENTER);
+            s.text("💬", 550, 300);
             
-            // Árboles
-            s.fill("#8B4513");
-            s.rect(600, 250, 30, 150);
-            s.fill("#228B22");
-            s.circle(615, 200, 100);
-            
-            // Fuente
+            // Fuente decorativa
             s.fill("#B0E0E6");
-            s.circle(500, 500, 80);
+            s.circle(700, 500, 60);
             s.fill("#87CEEB");
-            s.circle(500, 480, 50);
+            s.circle(700, 480, 40);
             
-            // Puerta de regreso a cocina
+            // Puerta de regreso
             s.fill("#8B4513");
             s.rect(50, 300, 60, 80, 5);
             s.fill("#fff");
             s.textSize(12);
-            s.text("Cocina", 80, 340);
+            s.text("Salir", 80, 340);
           }
         };
       };
@@ -940,7 +1253,7 @@ export default function App() {
         this.physics.add.existing(chair1, true);
         this.physics.add.existing(chair2, true);
 
-        const stove = this.add.rectangle(90, 280, 150, 130, 0x000000, 0);
+        const stove = this.add.rectangle(20, 280, 150, 130, 0x000000, 0);
         this.physics.add.existing(stove, true);
 
         const libraryDoor = this.add.rectangle(700, 200, 70, 90, 0x000000, 0);
@@ -952,7 +1265,8 @@ export default function App() {
         const exitDoor = this.add.rectangle(80, 340, 70, 90, 0x000000, 0);
         this.physics.add.existing(exitDoor, true);
 
-        player = this.add.circle(50, 300, 16, 0xffffff, 0);
+        // Posición inicial cambiada para evitar la estufa
+        player = this.add.circle(150, 300, 16, 0xffffff, 0);
         this.physics.add.existing(player);
         player.body.setCollideWorldBounds(true, 1, 1, true);
         player.body.setCircle(16);
@@ -1026,7 +1340,7 @@ export default function App() {
         const distToTable = Phaser.Math.Distance.Between(
           player.x, player.y, table.x, table.y
         );
-        if (distToTable < 90 && currentMap === "kitchen") {
+        if (distToTable < 90 && (currentMap === "kitchen" || currentMap.startsWith("casa_"))) {
           window.nearTable = true;
           if (Phaser.Input.Keyboard.JustDown(keyA) && !sandwichDone) {
             const ev = new CustomEvent("openSandwich");
@@ -1040,7 +1354,7 @@ export default function App() {
         const distToLibrary = Phaser.Math.Distance.Between(
           player.x, player.y, 700, 200
         );
-        if (distToLibrary < 60 && currentMap === "kitchen") {
+        if (distToLibrary < 60 && (currentMap === "kitchen" || currentMap.startsWith("casa_"))) {
           window.nearLibraryDoor = true;
           if (Phaser.Input.Keyboard.JustDown(keyE)) {
             const ev = new CustomEvent("enterLibrary");
@@ -1054,7 +1368,7 @@ export default function App() {
         const distToSocratic = Phaser.Math.Distance.Between(
           player.x, player.y, 100, 200
         );
-        if (distToSocratic < 60 && currentMap === "kitchen") {
+        if (distToSocratic < 60 && (currentMap === "kitchen" || currentMap.startsWith("casa_"))) {
           window.nearSocraticDoor = true;
           if (Phaser.Input.Keyboard.JustDown(keyE)) {
             const ev = new CustomEvent("enterSocratic");
@@ -1078,7 +1392,7 @@ export default function App() {
           window.nearExitDoor = false;
         }
 
-        // Enviar posición al servidor SOLO si cambió significativamente
+        // Enviar posición al servidor
         const currentPos = { x: Math.round(player.x), y: Math.round(player.y) };
         const distance = Phaser.Math.Distance.Between(
           lastSentPosition.x, lastSentPosition.y, currentPos.x, currentPos.y
@@ -1095,7 +1409,7 @@ export default function App() {
 
         // Control de visibilidad de signos
         if (window.tableExclamation) {
-          const shouldShow = !sandwichDone && currentMap === "kitchen";
+          const shouldShow = !sandwichDone && (currentMap === "kitchen" || currentMap.startsWith("casa_"));
           window.tableExclamation.setVisible(shouldShow);
           
           if (shouldShow && window.nearTable) {
@@ -1106,11 +1420,11 @@ export default function App() {
         }
         
         if (window.librarySign) {
-          window.librarySign.setVisible(currentMap === "kitchen");
+          window.librarySign.setVisible(currentMap === "kitchen" || currentMap.startsWith("casa_"));
         }
         
         if (window.socraticSign) {
-          window.socraticSign.setVisible(currentMap === "kitchen");
+          window.socraticSign.setVisible(currentMap === "kitchen" || currentMap.startsWith("casa_"));
         }
       }
 
@@ -1157,15 +1471,15 @@ export default function App() {
       };
       
       const nearTableListener = (e) => {
-        setShowPressAHint(e.detail.near && !sandwichDone && currentMap === "kitchen");
+        setShowPressAHint(e.detail.near && !sandwichDone && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
       };
       
       const nearLibraryListener = (e) => {
-        setShowPressEHint(e.detail.near && currentMap === "kitchen");
+        setShowPressEHint(e.detail.near && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
       };
       
       const nearSocraticListener = (e) => {
-        setShowPressEHint(e.detail.near && currentMap === "kitchen");
+        setShowPressEHint(e.detail.near && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
       };
       
       const enterLibraryListener = () => {
@@ -1177,8 +1491,7 @@ export default function App() {
       };
       
       const exitLibraryListener = () => {
-        setCurrentMap("kitchen");
-        audioService.playSuccessSound();
+        handleExitToKitchen();
       };
 
       const nearExitListener = (e) => {
@@ -1455,9 +1768,11 @@ export default function App() {
       }}
     >
       <h2 style={{ textAlign: "center" }}>
-        Hola {username}! {currentMap === "kitchen" ? "Cocina" : 
-                         currentMap === "library" ? "Biblioteca" : 
-                         "Salón Socrático"} - Muévete con las flechas.
+        Hola {username}! 
+        {currentMap === "kitchen" ? " Cocina" : 
+         currentMap.startsWith("casa_") ? " Mi Casa" :
+         currentMap === "library" ? " Biblioteca" : 
+         " Salón Socrático"} - Muévete con las flechas.
         {Object.values(otherPlayers).filter(p => p.currentMap === currentMap).length > 0 && 
           ` - Jugadores en esta área: ${Object.values(otherPlayers).filter(p => p.currentMap === currentMap).length + 1}`
         }
@@ -1477,6 +1792,54 @@ export default function App() {
           Jugadores: {Object.keys(otherPlayers).length + 1}
         </div>
       )}
+
+      {/* Botones de Navegación */}
+      <div style={{
+        position: 'absolute',
+        top: '70px',
+        left: '20px',
+        display: 'flex',
+        gap: '10px',
+        zIndex: 100
+      }}>
+        <button 
+          onClick={() => setShowMap(true)}
+          style={{
+            padding: '10px 15px',
+            background: '#3498db',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+          }}
+        >
+          🗺️ Mapa
+        </button>
+        
+        <button 
+          onClick={() => setShowProfile(true)}
+          style={{
+            padding: '10px 15px',
+            background: '#9b59b6',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+          }}
+        >
+          👤 Perfil
+        </button>
+      </div>
 
       <div
         ref={containerRef}
@@ -1518,7 +1881,7 @@ export default function App() {
             id="svg-player"
             style={{
               position: "absolute",
-              left: 50,
+              left: 150,
               top: 300,
               width: 64,
               height: 64,
@@ -1545,6 +1908,13 @@ export default function App() {
                   />
                 </filter>
               </defs>
+              {/* Sombrero seleccionado */}
+              {selectedHat && (
+                <g id="hat">
+                  <circle cx="50" cy="30" r="25" fill="#4a4a4a" />
+                  <rect x="30" y="35" width="40" height="8" fill="#333" />
+                </g>
+              )}
               <g id="body">
                 <circle
                   cx="50"
@@ -1610,7 +1980,7 @@ export default function App() {
             </svg>
           </div>
 
-          {/* OTROS JUGADORES - AHORA DENTRO DEL STAGE */}
+          {/* OTROS JUGADORES */}
           {renderOtherPlayers()}
         </div>
       </div>
@@ -1669,7 +2039,7 @@ export default function App() {
         🏆 Trofeos ({trofeos.total})
       </button>
 
-      {/* Interfaz de Chat MEJORADA */}
+      {/* Interfaz de Chat */}
       <div style={{
         position: 'absolute',
         bottom: '20px',
@@ -1780,7 +2150,7 @@ export default function App() {
       </div>
 
       {/* Hints */}
-      {showPressAHint && !showSandwichMinigame && !sandwichDone && currentMap === "kitchen" && (
+      {showPressAHint && !showSandwichMinigame && !sandwichDone && (currentMap === "kitchen" || currentMap.startsWith("casa_")) && (
         <div
           style={{
             position: "absolute",
@@ -1798,7 +2168,7 @@ export default function App() {
       )}
 
       {/* Mensaje de E para entrar a la biblioteca o salón socrático */}
-      {showPressEHint && currentMap === "kitchen" && (
+      {showPressEHint && (currentMap === "kitchen" || currentMap.startsWith("casa_")) && (
         <div
           style={{
             position: "absolute",
@@ -1833,7 +2203,7 @@ export default function App() {
       )}
 
       {/* Mensaje de sandwich completado */}
-      {showSandwichMessage && currentMap === "kitchen" && (
+      {showSandwichMessage && (currentMap === "kitchen" || currentMap.startsWith("casa_")) && (
         <div
           style={{
             position: "absolute",
@@ -1925,10 +2295,7 @@ export default function App() {
               📝 Tomar Quiz CS (Requiere 10 puntos)
             </button>
             
-            <button onClick={() => {
-              setCurrentMap('kitchen');
-              audioService.playSuccessSound();
-            }} style={{
+            <button onClick={handleExitToKitchen} style={{
               padding: '10px',
               borderRadius: '5px',
               backgroundColor: '#e74c3c',
@@ -2305,6 +2672,10 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* Modales */}
+      {showMap && <MapModal />}
+      {showProfile && <ProfileModal />}
     </div>
   );
 }
