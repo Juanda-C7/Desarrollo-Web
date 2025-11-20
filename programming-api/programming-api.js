@@ -1,7 +1,8 @@
-// programming-api.js - API PARA MINIJUEGOS DE PROGRAMACIÓN CON OUTPUT
+// programming-api.js - API PARA MINIJUEGOS DE PROGRAMACIÓN CON MONGODB
 const express = require('express');
 const cors = require('cors');
-const { VM } = require('vm2'); // Para ejecutar código de forma segura
+const { VM } = require('vm2');
+const axios = require('axios'); // Necesitas instalar: npm install axios
 
 const app = express();
 const PORT = 2002;
@@ -9,18 +10,16 @@ const PORT = 2002;
 app.use(cors());
 app.use(express.json());
 
-// Base de datos en memoria para lecciones y progreso
-let jugadores = {};
+// URL del servidor MongoDB
+const MONGODB_API_URL = 'http://localhost:4001';
 
-// Lecciones globales para todos los jugadores - 10 LECCIONES COMPLETAS
+// Lecciones globales (solo lectura)
 const lecciones = [
     {
         id: 1,
         titulo: "📝 Introducción a las Funciones",
         descripcion: "Aprende a crear tu primera función en JavaScript",
         dificultad: "principiante",
-        desbloqueada: true,
-        completada: false,
         contenido: {
             explicacion: `Una función es un bloque de código reutilizable que realiza una tarea específica. 
             
@@ -52,8 +51,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🔄 Funciones con Parámetros",
         descripcion: "Aprende a pasar información a las funciones",
         dificultad: "principiante", 
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `Los parámetros permiten que las funciones reciban información. Son como variables que se definen entre los paréntesis de la función.`,
             
@@ -84,8 +81,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🎯 Condicionales Básicos",
         descripcion: "Aprende a tomar decisiones en tu código",
         dificultad: "principiante",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `Los condicionales permiten que tu código tome decisiones. La estructura 'if' ejecuta código solo si una condición es verdadera.`,
             
@@ -116,8 +111,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🔄 Bucles For",
         descripcion: "Aprende a repetir código con bucles",
         dificultad: "intermedio",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `Los bucles 'for' te permiten repetir código múltiples veces. Tienen tres partes: inicialización, condición e incremento.`,
             
@@ -147,8 +140,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "📦 Trabajando con Arrays",
         descripcion: "Aprende métodos básicos de arrays",
         dificultad: "intermedio",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `Los arrays son listas de elementos. Tienen métodos útiles como 'push' para agregar elementos y 'length' para saber cuántos elementos tienen.`,
             
@@ -179,8 +170,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🔍 Métodos de Array",
         descripcion: "Aprende métodos modernos de arrays como map y filter",
         dificultad: "intermedio",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `JavaScript tiene métodos poderosos para arrays como map(), filter() y forEach() que hacen el código más limpio y expresivo.`,
             
@@ -211,8 +200,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🎲 Objetos en JavaScript",
         descripcion: "Aprende a trabajar con objetos y sus propiedades",
         dificultad: "intermedio",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `Los objetos son colecciones de propiedades, donde cada propiedad tiene un nombre y un valor. Son fundamentales en JavaScript.`,
             
@@ -242,8 +229,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "⚡ Arrow Functions",
         descripcion: "Aprende la sintaxis moderna de funciones flecha",
         dificultad: "intermedio",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `Las arrow functions (funciones flecha) son una sintaxis más corta para escribir funciones en JavaScript. Son especialmente útiles para funciones simples.`,
             
@@ -275,8 +260,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🛡️ Manejo de Errores",
         descripcion: "Aprende a manejar errores con try-catch",
         dificultad: "avanzado",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `El manejo de errores permite que tu código se recupere de situaciones inesperadas. Se usa try para el código que puede fallar y catch para manejar el error.`,
             
@@ -307,8 +290,6 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
         titulo: "🎯 Proyecto Final",
         descripcion: "Combina todo lo aprendido en un proyecto práctico",
         dificultad: "avanzado",
-        desbloqueada: false,
-        completada: false,
         contenido: {
             explicacion: `En este proyecto final, combinarás funciones, arrays, objetos y condicionales para crear una aplicación pequeña pero completa.`,
             
@@ -336,117 +317,203 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
 ];
 
 // ========================================
+// FUNCIONES AUXILIARES
+// ========================================
+
+// Obtener progreso del jugador desde MongoDB
+async function obtenerProgreso(token) {
+    try {
+        const response = await axios.get(`${MONGODB_API_URL}/programming/progress`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error obteniendo progreso:", error.response?.data || error.message);
+        return null;
+    }
+}
+
+// ========================================
 // RUTAS DE LECCIONES
 // ========================================
 
-// GET /lecciones - Obtener todas las lecciones
-app.get('/lecciones', (req, res) => {
-    res.json(lecciones);
+// GET /lecciones - Obtener todas las lecciones con estado de desbloqueo
+app.get('/lecciones', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
+        }
+
+        // Obtener progreso del jugador
+        const progreso = await obtenerProgreso(token);
+        
+        if (!progreso) {
+            return res.status(500).json({ error: 'Error obteniendo progreso del jugador' });
+        }
+
+        // Agregar estado de desbloqueo y completado a cada lección
+        const leccionesConEstado = lecciones.map(leccion => ({
+            ...leccion,
+            desbloqueada: progreso.leccionesDesbloqueadas.includes(leccion.id),
+            completada: progreso.leccionesCompletadas.includes(leccion.id)
+        }));
+        
+        res.json(leccionesConEstado);
+    } catch (error) {
+        console.error("Error en /lecciones:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
 });
 
 // GET /lecciones/:id - Obtener una lección específica
-app.get('/lecciones/:id', (req, res) => {
-    const leccionId = Number(req.params.id);
-    const leccion = lecciones.find(l => l.id === leccionId);
-    
-    if (!leccion) {
-        return res.status(404).json({ error: 'Lección no encontrada' });
+app.get('/lecciones/:id', async (req, res) => {
+    try {
+        const leccionId = Number(req.params.id);
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
+        }
+
+        const leccion = lecciones.find(l => l.id === leccionId);
+        
+        if (!leccion) {
+            return res.status(404).json({ error: 'Lección no encontrada' });
+        }
+
+        // Obtener progreso del jugador
+        const progreso = await obtenerProgreso(token);
+        
+        if (!progreso) {
+            return res.status(500).json({ error: 'Error obteniendo progreso del jugador' });
+        }
+
+        // Agregar estado de desbloqueo y completado
+        const leccionConEstado = {
+            ...leccion,
+            desbloqueada: progreso.leccionesDesbloqueadas.includes(leccion.id),
+            completada: progreso.leccionesCompletadas.includes(leccion.id)
+        };
+        
+        res.json(leccionConEstado);
+    } catch (error) {
+        console.error("Error en /lecciones/:id:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
-    
-    res.json(leccion);
 });
 
 // ========================================
-// RUTAS DE PROGRESO
+// RUTAS DE PROGRESO (AHORA USAN MONGODB)
 // ========================================
 
-// GET /progreso/:jugadorId - Obtener progreso del jugador
-app.get('/progreso/:jugadorId', (req, res) => {
-    const jugadorId = req.params.jugadorId;
-    
-    // Si el jugador no existe, crear uno nuevo
-    if (!jugadores[jugadorId]) {
-        jugadores[jugadorId] = {
-            leccionesCompletadas: [],
-            puntos: 0,
-            leccionActual: 1
-        };
+// GET /progreso - Obtener progreso del jugador
+app.get('/progreso', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
+        }
+
+        const progreso = await obtenerProgreso(token);
+        
+        if (!progreso) {
+            return res.status(500).json({ error: 'Error obteniendo progreso del jugador' });
+        }
+        
+        res.json({
+            leccionesCompletadas: progreso.leccionesCompletadas,
+            puntos: progreso.puntosProgramacion,
+            leccionActual: progreso.leccionActual
+        });
+    } catch (error) {
+        console.error("Error en /progreso:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
-    
-    res.json(jugadores[jugadorId]);
 });
 
-// PATCH /lecciones/:jugadorId/:leccionId/completar - Completar lección
-app.patch('/lecciones/:jugadorId/:leccionId/completar', (req, res) => {
-    const jugadorId = req.params.jugadorId;
-    const leccionId = Number(req.params.leccionId);
-    
-    const leccion = lecciones.find(l => l.id === leccionId);
-    
-    if (!leccion) {
-        return res.status(404).json({ error: 'Lección no encontrada' });
+// PATCH /lecciones/:leccionId/completar - Completar lección
+app.patch('/lecciones/:leccionId/completar', async (req, res) => {
+    try {
+        const leccionId = Number(req.params.leccionId);
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
+        }
+
+        const leccion = lecciones.find(l => l.id === leccionId);
+        
+        if (!leccion) {
+            return res.status(404).json({ error: 'Lección no encontrada' });
+        }
+
+        // Completar lección en MongoDB
+        const response = await axios.post(
+            `${MONGODB_API_URL}/programming/complete-lesson`,
+            { leccionId },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        res.json({
+            leccion: {
+                ...leccion,
+                completada: true,
+                desbloqueada: true
+            },
+            progreso: response.data.progreso,
+            siguienteLeccionDesbloqueada: response.data.siguienteLeccionDesbloqueada,
+            puntosGanados: response.data.puntosGanados,
+            mensaje: response.data.mensaje
+        });
+    } catch (error) {
+        console.error("Error en /lecciones/:leccionId/completar:", error);
+        const errorMessage = error.response?.data?.error || 'Error interno del servidor';
+        const statusCode = error.response?.status || 500;
+        res.status(statusCode).json({ error: errorMessage });
     }
-    
-    if (!leccion.desbloqueada) {
-        return res.status(400).json({ error: 'Lección no desbloqueada' });
-    }
-    
-    // Si el jugador no existe, crearlo
-    if (!jugadores[jugadorId]) {
-        jugadores[jugadorId] = {
-            leccionesCompletadas: [],
-            puntos: 0,
-            leccionActual: 1
-        };
-    }
-    
-    // Marcar lección como completada
-    leccion.completada = true;
-    
-    // Actualizar progreso del jugador
-    if (!jugadores[jugadorId].leccionesCompletadas.includes(leccionId)) {
-        jugadores[jugadorId].leccionesCompletadas.push(leccionId);
-        jugadores[jugadorId].puntos += 10;
-        jugadores[jugadorId].leccionActual = leccionId + 1;
-    }
-    
-    // Desbloquear siguiente lección
-    const siguienteLeccion = lecciones.find(l => l.id === leccionId + 1);
-    if (siguienteLeccion) {
-        siguienteLeccion.desbloqueada = true;
-    }
-    
-    res.json({ 
-        leccion,
-        progreso: jugadores[jugadorId],
-        siguienteLeccionDesbloqueada: !!siguienteLeccion,
-        puntosGanados: 10,
-        mensaje: `¡Lección "${leccion.titulo}" completada! Ganaste 10 puntos.`
-    });
 });
 
-// PATCH /lecciones/:jugadorId/:leccionId/validar - Validar código del usuario CON OUTPUT
-app.patch('/lecciones/:jugadorId/:leccionId/validar', (req, res) => {
-    const jugadorId = req.params.jugadorId;
-    const leccionId = Number(req.params.leccionId);
-    const { codigoUsuario } = req.body;
-    
-    const leccion = lecciones.find(l => l.id === leccionId);
-    
-    if (!leccion) {
-        return res.status(404).json({ error: 'Lección no encontrada' });
+// PATCH /lecciones/:leccionId/validar - Validar código del usuario CON OUTPUT
+app.patch('/lecciones/:leccionId/validar', async (req, res) => {
+    try {
+        const leccionId = Number(req.params.leccionId);
+        const { codigoUsuario } = req.body;
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
+        }
+
+        const leccion = lecciones.find(l => l.id === leccionId);
+        
+        if (!leccion) {
+            return res.status(404).json({ error: 'Lección no encontrada' });
+        }
+        
+        // Validación del código con ejecución y pruebas
+        const resultadoValidacion = validarYEjecutarCodigo(codigoUsuario, leccion.contenido.reto);
+        
+        // Registrar validación en MongoDB
+        await axios.post(
+            `${MONGODB_API_URL}/programming/validate`,
+            { leccionId, esCorrecto: resultadoValidacion.esCorrecto },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        res.json({
+            esCorrecto: resultadoValidacion.esCorrecto,
+            feedback: resultadoValidacion.feedback,
+            output: resultadoValidacion.output,
+            pruebas: resultadoValidacion.pruebas,
+            solucion: resultadoValidacion.esCorrecto ? null : leccion.contenido.reto.solucion
+        });
+    } catch (error) {
+        console.error("Error en /lecciones/:leccionId/validar:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
-    
-    // Validación del código con ejecución y pruebas
-    const resultadoValidacion = validarYEjecutarCodigo(codigoUsuario, leccion.contenido.reto);
-    
-    res.json({
-        esCorrecto: resultadoValidacion.esCorrecto,
-        feedback: resultadoValidacion.feedback,
-        output: resultadoValidacion.output,
-        pruebas: resultadoValidacion.pruebas,
-        solucion: resultadoValidacion.esCorrecto ? null : leccion.contenido.reto.solucion
-    });
 });
 
 // Función mejorada para validar y ejecutar código
@@ -491,11 +558,8 @@ function validarYEjecutarCodigo(codigoUsuario, reto) {
             }
         }
         
-        // Validación de sintaxis adicional
-        const esValido = validarCodigo(codigoUsuario, reto.solucion);
-        
         return {
-            esCorrecto: todasLasPruebasPasaron && esValido,
+            esCorrecto: todasLasPruebasPasaron,
             feedback: todasLasPruebasPasaron 
                 ? "✅ ¡Correcto! Tu código pasa todas las pruebas."
                 : "❌ Tu código necesita ajustes. Revisa los resultados de las pruebas.",
@@ -513,157 +577,61 @@ function validarYEjecutarCodigo(codigoUsuario, reto) {
     }
 }
 
-// PATCH /reiniciar-progreso/:jugadorId - Reiniciar progreso del jugador
-app.patch('/reiniciar-progreso/:jugadorId', (req, res) => {
-    const jugadorId = req.params.jugadorId;
-    
-    // Reiniciar lecciones
-    lecciones.forEach(leccion => {
-        leccion.completada = false;
-        leccion.desbloqueada = leccion.id === 1; // Solo la primera desbloqueada
-    });
-    
-    // Reiniciar progreso del jugador
-    jugadores[jugadorId] = {
-        leccionesCompletadas: [],
-        puntos: 0,
-        leccionActual: 1
-    };
-    
-    res.json({ 
-        mensaje: 'Progreso reiniciado exitosamente',
-        progreso: jugadores[jugadorId]
-    });
+// PATCH /reiniciar-progreso - Reiniciar progreso del jugador
+app.patch('/reiniciar-progreso', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
+        }
+
+        // Reiniciar progreso en MongoDB
+        const response = await axios.post(
+            `${MONGODB_API_URL}/programming/reset`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        res.json({ 
+            mensaje: 'Progreso reiniciado exitosamente',
+            progreso: response.data.progreso
+        });
+    } catch (error) {
+        console.error("Error en /reiniciar-progreso:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
 });
 
 // ========================================
 // RUTAS ESPECIALES PARA EL JUEGO
 // ========================================
 
-// GET /estado/:jugadorId - Estado completo del jugador
-app.get('/estado/:jugadorId', (req, res) => {
-    const jugadorId = req.params.jugadorId;
-    
-    // Si el jugador no existe, crear uno nuevo
-    if (!jugadores[jugadorId]) {
-        jugadores[jugadorId] = {
-            leccionesCompletadas: [],
-            puntos: 0,
-            leccionActual: 1
-        };
-    }
-    
-    const leccionesCompletadas = jugadores[jugadorId].leccionesCompletadas.length;
-    const totalLecciones = lecciones.length;
-    const progresoPorcentaje = totalLecciones > 0 ? Math.round((leccionesCompletadas / totalLecciones) * 100) : 0;
-    
-    res.json({
-        jugadorId,
-        progreso: jugadores[jugadorId],
-        leccionesCompletadas: leccionesCompletadas,
-        totalLecciones: totalLecciones,
-        progresoPorcentaje: progresoPorcentaje,
-        puntosTotales: jugadores[jugadorId].puntos,
-        leccionActual: jugadores[jugadorId].leccionActual
-    });
-});
-
-// POST /inicializar-jugador - Inicializar jugador
-app.post('/inicializar-jugador', (req, res) => {
-    const { jugadorId } = req.body;
-    
-    if (!jugadorId) {
-        return res.status(422).json({ error: 'El campo "jugadorId" es obligatorio' });
-    }
-    
-    // Si el jugador no existe, crearlo
-    if (!jugadores[jugadorId]) {
-        jugadores[jugadorId] = {
-            leccionesCompletadas: [],
-            puntos: 0,
-            leccionActual: 1
-        };
-    }
-    
-    res.json({ 
-        message: 'Jugador inicializado correctamente', 
-        progreso: jugadores[jugadorId]
-    });
-});
-
-// Función de validación de código mejorada
-function validarCodigo(codigoUsuario, solucion) {
+// GET /estado - Estado completo del jugador
+app.get('/estado', async (req, res) => {
     try {
-        // Limpiar y normalizar ambos códigos
-        const limpiarCodigo = (codigo) => {
-            return codigo
-                .replace(/\s/g, '') // Eliminar todos los espacios
-                .replace(/\/\/.*$/gm, '') // Eliminar comentarios de una línea
-                .replace(/\/\*[\s\S]*?\*\//g, '') // Eliminar comentarios multilínea
-                .toLowerCase();
-        };
+        const token = req.headers.authorization?.split(' ')[1];
         
-        const usuarioLimpio = limpiarCodigo(codigoUsuario);
-        const solucionLimpia = limpiarCodigo(solucion);
-        
-        console.log("Código usuario limpio:", usuarioLimpio.substring(0, 50) + "...");
-        console.log("Solución limpia:", solucionLimpia.substring(0, 50) + "...");
-        
-        // Comparación más flexible
-        const similitud = calcularSimilitud(usuarioLimpio, solucionLimpia);
-        
-        console.log("Similitud calculada:", similitud);
-        
-        // Considerar correcto si la similitud es mayor al 70%
-        return similitud > 0.7 || 
-               usuarioLimpio.includes(solucionLimpia.substring(0, 20)) || 
-               solucionLimpia.includes(usuarioLimpio.substring(0, 20));
-    } catch (error) {
-        console.error("Error en validación:", error);
-        return false;
-    }
-}
-
-// Función para calcular similitud entre strings
-function calcularSimilitud(str1, str2) {
-    const longer = str1.length > str2.length ? str1 : str2;
-    const shorter = str1.length > str2.length ? str2 : str1;
-    
-    if (longer.length === 0) return 1.0;
-    
-    return (longer.length - calcularDistancia(longer, shorter)) / parseFloat(longer.length);
-}
-
-// Función para calcular distancia de edición
-function calcularDistancia(s1, s2) {
-    s1 = s1.toLowerCase();
-    s2 = s2.toLowerCase();
-
-    const costs = [];
-    for (let i = 0; i <= s1.length; i++) {
-        let lastValue = i;
-        for (let j = 0; j <= s2.length; j++) {
-            if (i === 0) {
-                costs[j] = j;
-            } else {
-                if (j > 0) {
-                    let newValue = costs[j - 1];
-                    if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-                    }
-                    costs[j - 1] = lastValue;
-                    lastValue = newValue;
-                }
-            }
+        if (!token) {
+            return res.status(401).json({ error: 'Token requerido' });
         }
-        if (i > 0) costs[s2.length] = lastValue;
+
+        // Obtener estado desde MongoDB
+        const response = await axios.get(
+            `${MONGODB_API_URL}/programming/status`,
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        res.json(response.data);
+    } catch (error) {
+        console.error("Error en /estado:", error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
-    return costs[s2.length];
-}
+});
 
 // Ruta de prueba
 app.get('/', (req, res) => {
-    res.send('¡API de Minijuegos de Programación del Juego Roundy World!');
+    res.send('¡API de Minijuegos de Programación del Juego Roundy World! - Integrado con MongoDB');
 });
 
 // Manejar rutas no encontradas
@@ -673,14 +641,14 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🧠 API de Programación escuchando en http://localhost:${PORT}`);
+    console.log(`🔗 Conectado con MongoDB API: ${MONGODB_API_URL}`);
     console.log(`📚 Total de lecciones: ${lecciones.length}`);
-    console.log(`🎯 Endpoints disponibles:`);
-    console.log(`   GET    /lecciones                          - Todas las lecciones`);
-    console.log(`   GET    /lecciones/:id                      - Lección específica`);
-    console.log(`   GET    /progreso/:jugadorId                - Progreso del jugador`);
-    console.log(`   PATCH  /lecciones/:jugadorId/:leccionId/completar - Completar lección`);
-    console.log(`   PATCH  /lecciones/:jugadorId/:leccionId/validar - Validar código con OUTPUT`);
-    console.log(`   PATCH  /reiniciar-progreso/:jugadorId      - Reiniciar progreso`);
-    console.log(`   GET    /estado/:jugadorId                  - Estado completo`);
-    console.log(`   POST   /inicializar-jugador                - Inicializar jugador`);
+    console.log(`🎯 Endpoints disponibles (requieren token):`);
+    console.log(`   GET    /lecciones                    - Todas las lecciones con estado`);
+    console.log(`   GET    /lecciones/:id                - Lección específica con estado`);
+    console.log(`   GET    /progreso                     - Progreso del jugador`);
+    console.log(`   PATCH  /lecciones/:leccionId/completar - Completar lección`);
+    console.log(`   PATCH  /lecciones/:leccionId/validar   - Validar código con OUTPUT`);
+    console.log(`   PATCH  /reiniciar-progreso            - Reiniciar progreso`);
+    console.log(`   GET    /estado                        - Estado completo`);
 });

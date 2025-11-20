@@ -14,26 +14,48 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
   const [output, setOutput] = useState([]);
   const [mostrarOutput, setMostrarOutput] = useState(false);
 
+  // Obtener token del localStorage
+  const getToken = () => {
+    return localStorage.getItem('token');
+  };
+
   useEffect(() => {
-    cargarLecciones();
     if (username) {
+      cargarLecciones();
       cargarProgreso();
     }
   }, [username]);
 
   const cargarLecciones = async () => {
     try {
-      const response = await fetch('http://localhost:2002/lecciones');
+      const token = getToken();
+      if (!token) {
+        console.error('No hay token de autenticación');
+        return;
+      }
+
+      const response = await fetch('http://localhost:2002/lecciones', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar lecciones');
+      }
+
       const data = await response.json();
       
-      if (data) {
+      if (data && Array.isArray(data)) {
         setLecciones(data);
         
-        // Seleccionar la primera lección desbloqueada
-        const primeraDesbloqueada = data.find(leccion => leccion.desbloqueada);
-        if (primeraDesbloqueada) {
-          setLeccionActual(primeraDesbloqueada);
-          setCodigoUsuario(primeraDesbloqueada.contenido.reto.plantilla);
+        // Seleccionar la primera lección desbloqueada que no esté completada
+        const primeraNoCompletada = data.find(leccion => leccion.desbloqueada && !leccion.completada);
+        const leccionASeleccionar = primeraNoCompletada || data.find(leccion => leccion.desbloqueada);
+        
+        if (leccionASeleccionar) {
+          setLeccionActual(leccionASeleccionar);
+          setCodigoUsuario(leccionASeleccionar.contenido.reto.plantilla);
         }
       }
     } catch (error) {
@@ -75,7 +97,22 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
     if (!username) return;
     
     try {
-      const response = await fetch(`http://localhost:2002/progreso/${username}`);
+      const token = getToken();
+      if (!token) {
+        console.error('No hay token de autenticación');
+        return;
+      }
+
+      const response = await fetch('http://localhost:2002/progreso', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar progreso');
+      }
+
       const data = await response.json();
       
       if (data) {
@@ -83,6 +120,12 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
       }
     } catch (error) {
       console.error('Error cargando progreso:', error);
+      // Inicializar progreso vacío para evitar errores
+      setProgreso({
+        leccionesCompletadas: [],
+        puntos: 0,
+        leccionActual: 1
+      });
     }
   };
 
@@ -94,13 +137,25 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
     setOutput([]);
 
     try {
-      const response = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/validar`, {
+      const token = getToken();
+      if (!token) {
+        setFeedback('❌ Error: No hay sesión iniciada');
+        setCargando(false);
+        return;
+      }
+
+      const response = await fetch(`http://localhost:2002/lecciones/${leccionActual.id}/validar`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ codigoUsuario }),
       });
+
+      if (!response.ok) {
+        throw new Error('Error al validar código');
+      }
 
       const result = await response.json();
 
@@ -113,28 +168,31 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
           await audioService.playSuccessSound();
           
           // Completar lección
-          if (username) {
-            const completeResponse = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/completar`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-              }
-            });
-
-            const completeResult = await completeResponse.json();
-            
-            if (completeResult) {
-              // Recargar lecciones y progreso
-              cargarLecciones();
-              cargarProgreso();
-              
-              setTimeout(() => {
-                onComplete(completeResult.puntosGanados || 10);
-              }, 2000);
+          const completeResponse = await fetch(`http://localhost:2002/lecciones/${leccionActual.id}/completar`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
             }
-          } else {
+          });
+
+          if (!completeResponse.ok) {
+            throw new Error('Error al completar lección');
+          }
+
+          const completeResult = await completeResponse.json();
+          
+          if (completeResult) {
+            // Mostrar mensaje de éxito con puntos ganados
+            setFeedback(`${result.feedback}\n\n🎉 ${completeResult.mensaje || '¡Lección completada!'}`);
+            
+            // Recargar lecciones y progreso
+            await cargarLecciones();
+            await cargarProgreso();
+            
+            // Notificar al componente padre después de 2 segundos
             setTimeout(() => {
-              onComplete(10);
+              onComplete(completeResult.puntosGanados || 10);
             }, 2000);
           }
         } else {
@@ -143,7 +201,7 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
       }
     } catch (error) {
       console.error('Error validando código:', error);
-      setFeedback('Error de conexión. Intenta nuevamente.');
+      setFeedback('❌ Error de conexión. Intenta nuevamente.');
       await audioService.playErrorSound();
     } finally {
       setCargando(false);
@@ -157,13 +215,25 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
     setFeedback('');
 
     try {
-      const response = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/validar`, {
+      const token = getToken();
+      if (!token) {
+        setFeedback('❌ Error: No hay sesión iniciada');
+        setCargando(false);
+        return;
+      }
+
+      const response = await fetch(`http://localhost:2002/lecciones/${leccionActual.id}/validar`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ codigoUsuario }),
       });
+
+      if (!response.ok) {
+        throw new Error('Error al ejecutar pruebas');
+      }
 
       const result = await response.json();
 
@@ -180,7 +250,7 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
       }
     } catch (error) {
       console.error('Error ejecutando pruebas:', error);
-      setFeedback('Error ejecutando pruebas.');
+      setFeedback('❌ Error ejecutando pruebas.');
     } finally {
       setCargando(false);
     }
@@ -238,8 +308,8 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
           borderRadius: '8px',
           textAlign: 'center'
         }}>
-          <strong>📊 Tu Progreso:</strong> {progreso.puntos} puntos • 
-          {progreso.leccionesCompletadas.length} lecciones completadas
+          <strong>📊 Tu Progreso:</strong> {progreso.puntos || 0} puntos • 
+          {(progreso.leccionesCompletadas || []).length} lecciones completadas
         </div>
       )}
 

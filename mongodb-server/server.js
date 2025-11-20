@@ -19,7 +19,7 @@ mongoose.connect(MONGODB_URI)
     process.exit(1);
   });
 
-// Esquema del usuario ACTUALIZADO
+// Esquema del usuario ACTUALIZADO con progreso de programación
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -40,7 +40,13 @@ const userSchema = new mongoose.Schema({
   programmingProgress: {
     leccionesCompletadas: { type: [Number], default: [] },
     leccionActual: { type: Number, default: 1 },
-    puntosProgramacion: { type: Number, default: 0 }
+    puntosProgramacion: { type: Number, default: 0 },
+    leccionesDesbloqueadas: { type: [Number], default: [1] }, // Solo la primera desbloqueada
+    historialValidaciones: [{
+      leccionId: Number,
+      timestamp: Date,
+      esCorrecto: Boolean
+    }]
   },
   createdAt: { type: Date, default: Date.now }
 });
@@ -66,6 +72,187 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// ========================================
+// RUTAS DE PROGRAMACIÓN (NUEVAS)
+// ========================================
+
+// 🔹 OBTENER progreso de programación del jugador
+app.get("/programming/progress", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({
+      leccionesCompletadas: user.programmingProgress.leccionesCompletadas || [],
+      leccionActual: user.programmingProgress.leccionActual || 1,
+      puntosProgramacion: user.programmingProgress.puntosProgramacion || 0,
+      leccionesDesbloqueadas: user.programmingProgress.leccionesDesbloqueadas || [1]
+    });
+  } catch (error) {
+    console.error("Error obteniendo progreso de programación:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 VALIDAR código de una lección
+app.post("/programming/validate", authenticateToken, async (req, res) => {
+  try {
+    const { leccionId, esCorrecto } = req.body;
+
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Registrar validación en historial
+    if (!user.programmingProgress.historialValidaciones) {
+      user.programmingProgress.historialValidaciones = [];
+    }
+
+    user.programmingProgress.historialValidaciones.push({
+      leccionId,
+      timestamp: new Date(),
+      esCorrecto
+    });
+
+    await user.save();
+
+    res.json({
+      message: "Validación registrada",
+      esCorrecto,
+      leccionId
+    });
+  } catch (error) {
+    console.error("Error registrando validación:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 COMPLETAR una lección
+app.post("/programming/complete-lesson", authenticateToken, async (req, res) => {
+  try {
+    const { leccionId } = req.body;
+
+    if (!leccionId) {
+      return res.status(400).json({ error: "leccionId es requerido" });
+    }
+
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verificar que la lección esté desbloqueada
+    const leccionesDesbloqueadas = user.programmingProgress.leccionesDesbloqueadas || [1];
+    if (!leccionesDesbloqueadas.includes(leccionId)) {
+      return res.status(400).json({ error: "Esta lección no está desbloqueada" });
+    }
+
+    // Verificar que no esté ya completada
+    const leccionesCompletadas = user.programmingProgress.leccionesCompletadas || [];
+    if (leccionesCompletadas.includes(leccionId)) {
+      return res.status(400).json({ error: "Esta lección ya fue completada" });
+    }
+
+    // Marcar lección como completada
+    user.programmingProgress.leccionesCompletadas.push(leccionId);
+    
+    // Otorgar puntos (10 por lección completada)
+    const puntosGanados = 10;
+    user.programmingProgress.puntosProgramacion += puntosGanados;
+    
+    // También agregar a puntos educativos generales
+    user.educationalPoints += puntosGanados;
+
+    // Desbloquear siguiente lección
+    const siguienteLeccionId = leccionId + 1;
+    if (!leccionesDesbloqueadas.includes(siguienteLeccionId)) {
+      user.programmingProgress.leccionesDesbloqueadas.push(siguienteLeccionId);
+    }
+
+    // Actualizar lección actual
+    user.programmingProgress.leccionActual = siguienteLeccionId;
+
+    await user.save();
+
+    res.json({
+      message: `¡Lección ${leccionId} completada! Ganaste ${puntosGanados} puntos.`,
+      puntosGanados,
+      siguienteLeccionDesbloqueada: true,
+      siguienteLeccionId,
+      progreso: {
+        leccionesCompletadas: user.programmingProgress.leccionesCompletadas,
+        leccionActual: user.programmingProgress.leccionActual,
+        puntosProgramacion: user.programmingProgress.puntosProgramacion,
+        leccionesDesbloqueadas: user.programmingProgress.leccionesDesbloqueadas
+      },
+      educationalPoints: user.educationalPoints
+    });
+  } catch (error) {
+    console.error("Error completando lección:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 REINICIAR progreso de programación
+app.post("/programming/reset", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Reiniciar progreso de programación
+    user.programmingProgress = {
+      leccionesCompletadas: [],
+      leccionActual: 1,
+      puntosProgramacion: 0,
+      leccionesDesbloqueadas: [1],
+      historialValidaciones: []
+    };
+
+    await user.save();
+
+    res.json({
+      message: "Progreso de programación reiniciado exitosamente",
+      progreso: user.programmingProgress
+    });
+  } catch (error) {
+    console.error("Error reiniciando progreso:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 OBTENER estado completo de programación
+app.get("/programming/status", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    const totalLecciones = 10; // Puedes hacerlo dinámico si lo necesitas
+    const leccionesCompletadas = user.programmingProgress.leccionesCompletadas?.length || 0;
+    const progresoPorcentaje = totalLecciones > 0 ? Math.round((leccionesCompletadas / totalLecciones) * 100) : 0;
+
+    res.json({
+      username: user.username,
+      progreso: user.programmingProgress,
+      leccionesCompletadas: leccionesCompletadas,
+      totalLecciones: totalLecciones,
+      progresoPorcentaje: progresoPorcentaje,
+      puntosTotales: user.programmingProgress.puntosProgramacion || 0,
+      leccionActual: user.programmingProgress.leccionActual || 1,
+      leccionesDesbloqueadas: user.programmingProgress.leccionesDesbloqueadas || [1]
+    });
+  } catch (error) {
+    console.error("Error obteniendo estado de programación:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
 
 // ========================================
 // RUTAS EXISTENTES (MONGODB)
@@ -114,7 +301,9 @@ app.post("/register", async (req, res) => {
       programmingProgress: {
         leccionesCompletadas: [],
         leccionActual: 1,
-        puntosProgramacion: 0
+        puntosProgramacion: 0,
+        leccionesDesbloqueadas: [1],
+        historialValidaciones: []
       }
     });
 
@@ -267,7 +456,7 @@ app.put("/user", authenticateToken, async (req, res) => {
   }
 });
 
-// 🔹 NUEVA RUTA: Actualizar puntos educativos
+// 🔹 Actualizar puntos educativos
 app.post("/update-educational-points", authenticateToken, async (req, res) => {
   try {
     const { points, action = 'add' } = req.body;
@@ -307,12 +496,10 @@ app.post("/user/purchase-hat", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Verificar si ya posee el sombrero
     if (user.ownedHats && user.ownedHats.includes(hatId)) {
       return res.status(400).json({ error: "Ya posees este sombrero" });
     }
 
-    // Verificar que tenga suficientes recursos
     if (currency === "points" && user.educationalPoints < cost) {
       return res.status(400).json({ error: "Puntos educativos insuficientes" });
     }
@@ -321,14 +508,12 @@ app.post("/user/purchase-hat", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Dinero insuficiente" });
     }
 
-    // Actualizar recursos
     if (currency === "points") {
       user.educationalPoints -= cost;
     } else {
       user.money -= cost;
     }
 
-    // Agregar sombrero a la colección
     if (!user.ownedHats) {
       user.ownedHats = [];
     }
@@ -364,7 +549,6 @@ app.post("/user/equip-hat", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Verificar que el usuario posee el sombrero
     if (!user.ownedHats || !user.ownedHats.includes(hatId)) {
       return res.status(400).json({ error: "No posees este sombrero" });
     }
@@ -469,10 +653,18 @@ app.listen(PORT, () => {
   console.log(`📊 Conectado a: ${MONGODB_URI.split('@')[1]}`);
   console.log(`🧠 Integrado con Programming API`);
   console.log(`🔐 Endpoints disponibles:`);
+  console.log(`\n   === AUTENTICACIÓN ===`);
   console.log(`   POST   /register`);
   console.log(`   POST   /login`);
   console.log(`   GET    /user (protegido)`);
   console.log(`   PUT    /user (protegido)`);
+  console.log(`\n   === PROGRAMACIÓN (NUEVOS) ===`);
+  console.log(`   GET    /programming/progress (protegido)`);
+  console.log(`   POST   /programming/validate (protegido)`);
+  console.log(`   POST   /programming/complete-lesson (protegido)`);
+  console.log(`   POST   /programming/reset (protegido)`);
+  console.log(`   GET    /programming/status (protegido)`);
+  console.log(`\n   === OTROS ===`);
   console.log(`   POST   /update-educational-points (protegido)`);
   console.log(`   POST   /user/purchase-hat (protegido)`);
   console.log(`   POST   /user/equip-hat (protegido)`);
