@@ -104,39 +104,58 @@ export default function App() {
   }, [step, username]);
 
   const syncUserData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${MONGODB_API}/user`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${MONGODB_API}/user`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+    
+    if (response.ok) {
+      const userData = await response.json();
+      
+      // Sincronizar todos los estados locales
+      setMoney(userData.money || 0);
+      setEducationalPoints(userData.educationalPoints || 0);
+      setOwnedHats(userData.ownedHats || []);
+      
+      // ✅ VERIFICACIÓN MEJORADA DEL SOMBRERO
+      console.log("🎩 Datos de sombrero desde BD:", {
+        selectedHatBD: userData.selectedHat,
+        ownedHatsBD: userData.ownedHats
       });
       
-      if (response.ok) {
-        const userData = await response.json();
-        
-        // Sincronizar todos los estados locales
-        setMoney(userData.money || 0);
-        setEducationalPoints(userData.educationalPoints || 0);
-        setOwnedHats(userData.ownedHats || []);
-        
-        // Cargar lista de sombreros disponibles
-        await loadHatsData(userData.ownedHats || []);
-        
-        // Cargar sombrero seleccionado
-        if (userData.selectedHat) {
-          const hat = getHatById(userData.selectedHat);
-          if (hat) {
-            setSelectedHat(hat);
-            localStorage.setItem('selectedHat', JSON.stringify(hat));
+      // Cargar lista de sombreros disponibles
+      await loadHatsData(userData.ownedHats || []);
+      
+      // Cargar sombrero seleccionado con validación
+      if (userData.selectedHat) {
+        const hat = getHatById(userData.selectedHat);
+        if (hat) {
+          console.log("✅ Sombrero encontrado en BD, equipando:", hat.name);
+          setSelectedHat(hat);
+          localStorage.setItem('selectedHat', JSON.stringify(hat));
+          
+          // ✅ Notificar inmediatamente a otros jugadores
+          if (socket) {
+            socket.emit("player-hat-change", {
+              selectedHat: hat
+            });
           }
+        } else {
+          console.warn("⚠️ Sombrero ID", userData.selectedHat, "no encontrado en la lista");
         }
+      } else {
+        console.log("ℹ️ No hay sombrero seleccionado en BD");
+        setSelectedHat(null);
+        localStorage.removeItem('selectedHat');
       }
-    } catch (error) {
-      console.error("Error sincronizando datos del usuario:", error);
     }
-  };
-
+  } catch (error) {
+    console.error("Error sincronizando datos del usuario:", error);
+  }
+};
   // Función auxiliar para obtener sombrero por ID
   const getHatById = (hatId) => {
     const hats = [

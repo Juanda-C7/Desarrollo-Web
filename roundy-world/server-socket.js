@@ -40,15 +40,24 @@ io.on("connection", (socket) => {
       x: playerData.x,
       y: playerData.y,
       currentMap: playerData.currentMap,
-      selectedHat: playerData.selectedHat || null, // Guardar información del sombrero
+      selectedHat: playerData.selectedHat || null, // ✅ Guardar información del sombrero
       message: "",
       messageTimestamp: 0
     });
 
     console.log(`🎮 ${safeUsername} se unió al juego en ${playerData.currentMap} con sombrero:`, playerData.selectedHat);
     
-    // Notificar a todos los jugadores
+    // ✅ CORRECCIÓN: Notificar a todos los jugadores incluyendo el sombrero
     socket.broadcast.emit("player-joined", connectedPlayers.get(socket.id));
+    
+    // ✅ CORRECCIÓN: Enviar información del sombrero a otros jugadores inmediatamente
+    if (playerData.selectedHat) {
+      socket.broadcast.emit("player-hat-changed", {
+        id: socket.id,
+        username: safeUsername,
+        selectedHat: playerData.selectedHat
+      });
+    }
     
     // Enviar lista de jugadores actual al nuevo jugador
     const playersList = Array.from(connectedPlayers.values());
@@ -177,7 +186,7 @@ const PORT = 4002;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🎮 Servidor de Socket.io ejecutándose en puerto ${PORT}`);
   console.log(`💬 Chat y sistema multijugador activo`);
-  console.log(`🎩 Sistema de sombreros multijugador activado`);
+  console.log(`🎩 Sistema de sombreros multijugador activado y corregido`);
   console.log(`🌐 Aceptando conexiones de cualquier origen`);
   console.log(`📡 Para conectar desde otra computadora usa: http://TU_IP_LOCAL:${PORT}`);
   console.log(`🎯 Los clientes pueden conectar con: http://localhost:3000/?server=TU_IP`);
