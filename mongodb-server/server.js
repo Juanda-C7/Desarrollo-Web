@@ -62,6 +62,10 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ========================================
+// RUTAS EXISTENTES (MONGODB)
+// ========================================
+
 // 🔹 REGISTRO de usuario
 app.post("/register", async (req, res) => {
   try {
@@ -244,24 +248,7 @@ app.put("/user", authenticateToken, async (req, res) => {
   }
 });
 
-// 🔹 OBTENER sombreros del usuario
-app.get("/user/hats", authenticateToken, async (req, res) => {
-  try {
-    const user = await User.findOne({ username: req.user.username });
-    if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    }
-
-    res.json({
-      hats: user.ownedHats || []
-    });
-  } catch (error) {
-    console.error("Error obteniendo sombreros:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
-  }
-});
-
-// 🔹 COMPRAR sombrero - VERSIÓN MEJORADA
+// 🔹 COMPRAR sombrero
 app.post("/user/purchase-hat", authenticateToken, async (req, res) => {
   try {
     const { hatId, cost, currency } = req.body;
@@ -297,10 +284,7 @@ app.post("/user/purchase-hat", authenticateToken, async (req, res) => {
       user.ownedHats = [];
     }
 
-    // Agregar el sombrero (ya verificamos que no existe)
     user.ownedHats.push(hatId);
-    
-    // Equipar automáticamente el sombrero recién comprado
     user.selectedHat = hatId;
 
     await user.save();
@@ -321,7 +305,7 @@ app.post("/user/purchase-hat", authenticateToken, async (req, res) => {
   }
 });
 
-// 🔹 EQUIPAR sombrero - VERSIÓN MEJORADA
+// 🔹 EQUIPAR sombrero
 app.post("/user/equip-hat", authenticateToken, async (req, res) => {
   try {
     const { hatId } = req.body;
@@ -331,7 +315,7 @@ app.post("/user/equip-hat", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Verificar que el usuario posea el sombrero
+    // Verificar que el usuario posee el sombrero
     if (!user.ownedHats || !user.ownedHats.includes(hatId)) {
       return res.status(400).json({ error: "No posees este sombrero" });
     }
@@ -382,6 +366,10 @@ app.post("/sync-achievements", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+// ========================================
+// RUTAS ADICIONALES
+// ========================================
 
 // 🔹 Health check
 app.get("/health", async (req, res) => {
@@ -435,7 +423,6 @@ app.listen(PORT, () => {
   console.log(`   POST   /login`);
   console.log(`   GET    /user (protegido)`);
   console.log(`   PUT    /user (protegido)`);
-  console.log(`   GET    /user/hats (protegido)`);
   console.log(`   POST   /user/purchase-hat (protegido)`);
   console.log(`   POST   /user/equip-hat (protegido)`);
   console.log(`   POST   /sync-achievements (protegido)`);

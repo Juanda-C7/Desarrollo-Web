@@ -1,107 +1,178 @@
-import React, { useState } from 'react';
-import { huggingService } from '../services/huggingService';
+import React, { useState, useEffect } from 'react';
 import { audioService } from '../services/audioService';
 
-const EducationalGame = ({ onComplete, cost = 5 }) => {
-  const [code, setCode] = useState('');
+const EducationalGame = ({ onComplete, cost = 5, username }) => {
+  const [lecciones, setLecciones] = useState([]);
+  const [leccionActual, setLeccionActual] = useState(null);
+  const [codigoUsuario, setCodigoUsuario] = useState('');
   const [feedback, setFeedback] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [cargando, setCargando] = useState(false);
+  const [mostrarExplicacion, setMostrarExplicacion] = useState(true);
+  const [mostrarPistas, setMostrarPistas] = useState(false);
+  const [mostrarSolucion, setMostrarSolucion] = useState(false);
+  const [progreso, setProgreso] = useState(null);
 
-  const programmingChallenges = [
-    {
-      id: 'suma',
-      title: "Función Suma",
-      description: "Escribe una función que sume dos números",
-      example: "function sumar(a, b) {\n  return a + b;\n}",
-      hints: [
-        "Usa la palabra clave 'function'",
-        "Define dos parámetros (a y b)",
-        "Retorna la suma usando el operador +"
-      ]
-    },
-    {
-      id: 'bucle',
-      title: "Bucle For",
-      description: "Crea un bucle que imprima números del 1 al 5",
-      example: "for (let i = 1; i <= 5; i++) {\n  console.log(i);\n}",
-      hints: [
-        "Usa 'for' con let i = 1",
-        "La condición debe ser i <= 5",
-        "Incrementa i con i++",
-        "Usa console.log(i) dentro del bucle"
-      ]
-    },
-    {
-      id: 'condicional',
-      title: "Condicional If",
-      description: "Escribe una función que verifique si un número es par",
-      example: "function esPar(num) {\n  if (num % 2 === 0) {\n    return true;\n  } else {\n    return false;\n  }\n}",
-      hints: [
-        "Usa el operador módulo %",
-        "Comprueba si num % 2 === 0",
-        "Retorna true si es par, false si no"
-      ]
+  useEffect(() => {
+    cargarLecciones();
+    if (username) {
+      cargarProgreso();
     }
-  ];
+  }, [username]);
 
-  const [currentChallenge, setCurrentChallenge] = useState(0);
-  const [showHints, setShowHints] = useState(false);
+  const cargarLecciones = async () => {
+    try {
+      const response = await fetch('http://localhost:2002/lecciones');
+      const data = await response.json();
+      
+      if (data) {
+        setLecciones(data);
+        
+        // Seleccionar la primera lección desbloqueada
+        const primeraDesbloqueada = data.find(leccion => leccion.desbloqueada);
+        if (primeraDesbloqueada) {
+          setLeccionActual(primeraDesbloqueada);
+          setCodigoUsuario(primeraDesbloqueada.contenido.reto.plantilla);
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando lecciones:', error);
+      // Fallback hardcodeado
+      const leccionesFallback = [
+        {
+          id: 1,
+          titulo: "📝 Introducción a las Funciones",
+          descripcion: "Aprende a crear tu primera función en JavaScript",
+          dificultad: "principiante",
+          desbloqueada: true,
+          completada: false,
+          contenido: {
+            explicacion: "Una función es un bloque de código reutilizable que realiza una tarea específica.",
+            reto: {
+              tarea: "Completa la función 'saludar' que debe retornar el texto '¡Hola Mundo!'",
+              plantilla: "function saludar() {\n  // Tu código aquí\n}",
+              solucion: "function saludar() {\n  return '¡Hola Mundo!';\n}"
+            },
+            pistas: [
+              "Usa la palabra clave 'return'",
+              "El texto va entre comillas",
+              "Ejemplo: return 'texto';"
+            ]
+          }
+        }
+      ];
+      setLecciones(leccionesFallback);
+      setLeccionActual(leccionesFallback[0]);
+      setCodigoUsuario(leccionesFallback[0].contenido.reto.plantilla);
+    }
+  };
 
-  const analyzeCode = async () => {
-    if (!code.trim()) return;
+  const cargarProgreso = async () => {
+    if (!username) return;
     
-    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:2002/progreso/${username}`);
+      const data = await response.json();
+      
+      if (data) {
+        setProgreso(data);
+      }
+    } catch (error) {
+      console.error('Error cargando progreso:', error);
+    }
+  };
+
+  const validarCodigo = async () => {
+    if (!codigoUsuario.trim() || !leccionActual) return;
+    
+    setCargando(true);
     setFeedback('');
-    setAnalysisResult(null);
 
     try {
-      const challenge = programmingChallenges[currentChallenge];
-      
-      // Usar el servicio de Hugging Face
-      const result = await huggingService.analyzeCode(
-        code, 
-        challenge.description,
-        challenge.example
-      );
+      const response = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/validar`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ codigoUsuario }),
+      });
 
-      setFeedback(result.feedback);
-      
-      // Evaluar si el código es correcto
-      const isCorrect = huggingService.evaluateCodeCorrectness(code, challenge.id);
-      setAnalysisResult(isCorrect ? 'correct' : 'needs_improvement');
-      
-      // Reproducir sonido según el resultado
-      if (isCorrect) {
-        await audioService.playSuccessSound();
-        setTimeout(() => onComplete(10), 2000);
-      } else {
-        await audioService.playErrorSound();
+      const result = await response.json();
+
+      if (result) {
+        setFeedback(result.feedback);
+        
+        if (result.esCorrecto) {
+          await audioService.playSuccessSound();
+          
+          // Completar lección
+          if (username) {
+            const completeResponse = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/completar`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+
+            const completeResult = await completeResponse.json();
+            
+            if (completeResult) {
+              // Recargar lecciones y progreso
+              cargarLecciones();
+              cargarProgreso();
+              
+              setTimeout(() => {
+                onComplete(completeResult.puntosGanados || 10);
+              }, 2000);
+            }
+          } else {
+            setTimeout(() => {
+              onComplete(10);
+            }, 2000);
+          }
+        } else {
+          await audioService.playErrorSound();
+        }
       }
-      
     } catch (error) {
-      console.error('Error in analyzeCode:', error);
+      console.error('Error validando código:', error);
       setFeedback('Error de conexión. Intenta nuevamente.');
       await audioService.playErrorSound();
     } finally {
-      setLoading(false);
+      setCargando(false);
     }
   };
 
-  const nextChallenge = () => {
-    setCurrentChallenge((prev) => (prev + 1) % programmingChallenges.length);
-    setCode('');
-    setFeedback('');
-    setAnalysisResult(null);
-    setShowHints(false);
+  const seleccionarLeccion = (leccion) => {
+    if (leccion.desbloqueada) {
+      setLeccionActual(leccion);
+      setCodigoUsuario(leccion.contenido.reto.plantilla);
+      setFeedback('');
+      setMostrarExplicacion(true);
+      setMostrarPistas(false);
+      setMostrarSolucion(false);
+    }
   };
+
+  if (!leccionActual) {
+    return (
+      <div style={{
+        background: 'white',
+        padding: '30px',
+        borderRadius: '15px',
+        textAlign: 'center',
+        width: '500px'
+      }}>
+        <div>📚 Cargando lecciones...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
       background: 'white',
       padding: '25px',
       borderRadius: '15px',
-      width: '550px',
+      width: '700px',
       maxWidth: '90vw',
       maxHeight: '80vh',
       overflowY: 'auto',
@@ -109,20 +180,112 @@ const EducationalGame = ({ onComplete, cost = 5 }) => {
       border: '3px solid #3498db'
     }}>
       <h3 style={{ marginTop: 0, color: '#2c3e50', textAlign: 'center' }}>
-        🧠 Minijuego Educativo - Costo: {cost} monedas
+        🧠 Minijuego de Programación - Costo: {cost} monedas
       </h3>
-      
-      <div style={{ marginBottom: '15px', padding: '15px', background: '#ecf0f1', borderRadius: '8px' }}>
+
+      {/* Información de progreso */}
+      {progreso && (
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '10px', 
+          background: '#e8f4fd', 
+          borderRadius: '8px',
+          textAlign: 'center'
+        }}>
+          <strong>📊 Tu Progreso:</strong> {progreso.puntos} puntos • 
+          {progreso.leccionesCompletadas.length} lecciones completadas
+        </div>
+      )}
+
+      {/* Selector de lecciones */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+          Lecciones disponibles:
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {lecciones.map(leccion => (
+            <button
+              key={leccion.id}
+              onClick={() => seleccionarLeccion(leccion)}
+              disabled={!leccion.desbloqueada}
+              style={{
+                padding: '8px 12px',
+                backgroundColor: 
+                  leccionActual.id === leccion.id ? '#3498db' :
+                  leccion.desbloqueada ? (leccion.completada ? '#27ae60' : '#95a5a6') : '#bdc3c7',
+                color: 'white',
+                border: 'none',
+                borderRadius: '20px',
+                cursor: leccion.desbloqueada ? 'pointer' : 'not-allowed',
+                fontSize: '12px',
+                opacity: leccion.desbloqueada ? 1 : 0.6
+              }}
+            >
+              {leccion.completada ? '✅ ' : ''}
+              {leccion.titulo} {!leccion.desbloqueada && '🔒'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lección actual */}
+      <div style={{ marginBottom: '20px', padding: '15px', background: '#ecf0f1', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>
-          {programmingChallenges[currentChallenge].title}
+          {leccionActual.titulo}
         </h4>
-        <p style={{ margin: '0 0 10px 0', lineHeight: '1.4' }}>
-          {programmingChallenges[currentChallenge].description}
+        <p style={{ margin: '0 0 15px 0', lineHeight: '1.4' }}>
+          {leccionActual.descripcion}
         </p>
-        
+
+        {/* Explicación */}
+        <div style={{ marginBottom: '15px' }}>
+          <button 
+            onClick={() => setMostrarExplicacion(!mostrarExplicacion)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: '#3498db',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              marginRight: '10px'
+            }}
+          >
+            {mostrarExplicacion ? '📖 Ocultar Explicación' : '📖 Mostrar Explicación'}
+          </button>
+          
+          {mostrarExplicacion && (
+            <div style={{ 
+              marginTop: '10px', 
+              padding: '10px', 
+              background: '#fff9e6', 
+              borderRadius: '5px',
+              border: '1px solid #f39c12'
+            }}>
+              <strong>📚 Explicación:</strong>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4', marginTop: '5px' }}>
+                {leccionActual.contenido.explicacion}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Reto actual */}
+        <div style={{ 
+          padding: '12px', 
+          background: '#2c3e50', 
+          color: 'white', 
+          borderRadius: '5px',
+          marginBottom: '10px'
+        }}>
+          <strong>🎯 Reto:</strong> {leccionActual.contenido.reto.tarea}
+        </div>
+
+        {/* Pistas */}
         <div style={{ marginBottom: '10px' }}>
           <button 
-            onClick={() => setShowHints(!showHints)}
+            onClick={() => setMostrarPistas(!mostrarPistas)}
             style={{
               padding: '5px 10px',
               backgroundColor: '#f39c12',
@@ -130,49 +293,81 @@ const EducationalGame = ({ onComplete, cost = 5 }) => {
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '12px'
+              fontSize: '12px',
+              marginRight: '10px'
             }}
           >
-            {showHints ? 'Ocultar' : 'Mostrar'} Pistas
+            {mostrarPistas ? '💡 Ocultar Pistas' : '💡 Mostrar Pistas'}
           </button>
           
-          {showHints && (
-            <div style={{ marginTop: '10px', padding: '10px', background: '#fff9e6', borderRadius: '5px' }}>
+          {mostrarPistas && leccionActual.contenido.pistas && (
+            <div style={{ 
+              marginTop: '10px', 
+              padding: '10px', 
+              background: '#fff3cd', 
+              borderRadius: '5px',
+              border: '1px solid #ffc107'
+            }}>
               <strong>💡 Pistas:</strong>
               <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-                {programmingChallenges[currentChallenge].hints.map((hint, index) => (
-                  <li key={index} style={{ fontSize: '12px', marginBottom: '3px' }}>{hint}</li>
+                {leccionActual.contenido.pistas.map((pista, index) => (
+                  <li key={index} style={{ marginBottom: '3px' }}>{pista}</li>
                 ))}
               </ul>
             </div>
           )}
         </div>
-        
-        <details style={{ fontSize: '12px' }}>
-          <summary style={{ cursor: 'pointer', color: '#3498db' }}>
-            Ver ejemplo de solución
-          </summary>
-          <pre style={{ 
-            background: '#34495e', 
-            color: 'white', 
-            padding: '10px', 
-            borderRadius: '5px', 
-            fontSize: '11px',
-            marginTop: '8px',
-            overflowX: 'auto'
-          }}>
-            {programmingChallenges[currentChallenge].example}
-          </pre>
-        </details>
+
+        {/* Solución */}
+        <div>
+          <button 
+            onClick={() => setMostrarSolucion(!mostrarSolucion)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: '#e74c3c',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            {mostrarSolucion ? '👀 Ocultar Solución' : '👀 Mostrar Solución'}
+          </button>
+          
+          {mostrarSolucion && (
+            <div style={{ 
+              marginTop: '10px', 
+              padding: '10px', 
+              background: '#f8d7da', 
+              borderRadius: '5px',
+              border: '1px solid #dc3545'
+            }}>
+              <strong>💡 Solución:</strong>
+              <pre style={{ 
+                background: '#34495e', 
+                color: 'white', 
+                padding: '10px', 
+                borderRadius: '5px', 
+                fontSize: '12px',
+                marginTop: '8px',
+                overflowX: 'auto'
+              }}>
+                {leccionActual.contenido.reto.solucion}
+              </pre>
+            </div>
+          )}
+        </div>
       </div>
-      
+
+      {/* Editor de código */}
       <textarea
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
+        value={codigoUsuario}
+        onChange={(e) => setCodigoUsuario(e.target.value)}
         placeholder="Escribe tu código aquí..."
         style={{ 
           width: '100%', 
-          height: '120px', 
+          height: '150px', 
           margin: '10px 0', 
           padding: '10px',
           borderRadius: '5px',
@@ -182,82 +377,56 @@ const EducationalGame = ({ onComplete, cost = 5 }) => {
           resize: 'vertical'
         }}
       />
-      
+
+      {/* Botones de acción */}
       <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
         <button 
-          onClick={analyzeCode} 
-          disabled={loading || !code.trim()}
+          onClick={validarCodigo} 
+          disabled={cargando || !codigoUsuario.trim()}
           style={{
             padding: '10px 20px',
-            backgroundColor: loading ? '#95a5a6' : '#2ecc71',
+            backgroundColor: cargando ? '#95a5a6' : '#2ecc71',
             color: 'white',
             border: 'none',
             borderRadius: '5px',
-            cursor: loading || !code.trim() ? 'not-allowed' : 'pointer',
+            cursor: cargando || !codigoUsuario.trim() ? 'not-allowed' : 'pointer',
             fontWeight: 'bold',
             minWidth: '140px'
           }}
         >
-          {loading ? '🔄 Analizando...' : '📤 Enviar a IA'}
+          {cargando ? '🔄 Validando...' : '✅ Validar Código'}
         </button>
-        
+
         <button 
-          onClick={nextChallenge}
+          onClick={() => setCodigoUsuario(leccionActual.contenido.reto.plantilla)}
           style={{
             padding: '10px 15px',
-            backgroundColor: '#3498db',
+            backgroundColor: '#95a5a6',
             color: 'white',
             border: 'none',
             borderRadius: '5px',
             cursor: 'pointer'
           }}
         >
-          🔄 Nuevo Reto
+          🔄 Reiniciar
         </button>
       </div>
-      
+
+      {/* Feedback */}
       {feedback && (
         <div style={{ 
           marginTop: '15px', 
           padding: '12px', 
-          background: analysisResult === 'correct' ? '#d5edda' : '#fff3cd',
+          background: feedback.includes('✅') ? '#d5edda' : '#fff3cd',
           borderRadius: '8px',
-          border: `2px solid ${analysisResult === 'correct' ? '#28a745' : '#ffc107'}`
+          border: `2px solid ${feedback.includes('✅') ? '#28a745' : '#ffc107'}`
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <strong>🤖 Feedback IA:</strong>
-            {analysisResult === 'correct' && (
-              <span style={{ 
-                marginLeft: '10px', 
-                padding: '2px 8px', 
-                background: '#28a745', 
-                color: 'white', 
-                borderRadius: '12px',
-                fontSize: '12px'
-              }}>
-                ✅ Correcto
-              </span>
-            )}
-          </div>
           <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
             {feedback}
           </div>
-          {analysisResult === 'correct' && (
-            <div style={{ 
-              marginTop: '10px', 
-              padding: '8px', 
-              background: '#28a745', 
-              color: 'white',
-              borderRadius: '5px',
-              textAlign: 'center',
-              fontWeight: 'bold'
-            }}>
-              🎉 ¡Ganaste 10 puntos educativos!
-            </div>
-          )}
         </div>
       )}
-      
+
       <button 
         onClick={() => onComplete(0)}
         style={{

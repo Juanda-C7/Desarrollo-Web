@@ -3,7 +3,6 @@ import Phaser from "phaser";
 import p5 from "p5";
 import io from "socket.io-client";
 import EducationalGame from "./components/EducationalGame";
-import QuizComponent from "./components/QuizComponent";
 import { audioService } from "./services/audioService";
 
 export default function App() {
@@ -20,7 +19,6 @@ export default function App() {
   const [currentMap, setCurrentMap] = useState("kitchen");
   const [educationalPoints, setEducationalPoints] = useState(0);
   const [currentLesson, setCurrentLesson] = useState(null);
-  const [currentQuiz, setCurrentQuiz] = useState(null);
   const [showPressEHint, setShowPressEHint] = useState(false);
   const [showSandwichMessage, setShowSandwichMessage] = useState(false);
   const [nearExitDoor, setNearExitDoor] = useState(false);
@@ -83,7 +81,7 @@ export default function App() {
     }
   }, [step, username]);
 
-  // Cargar datos del usuario y sombreros - CORREGIDO
+  // Cargar datos del usuario y sombreros
   useEffect(() => {
     if (step === "world" && username) {
       syncUserData();
@@ -110,12 +108,11 @@ export default function App() {
         // Cargar lista de sombreros disponibles
         await loadHatsData(userData.ownedHats || []);
         
-        // Cargar sombrero seleccionado - CORREGIDO
+        // Cargar sombrero seleccionado
         if (userData.selectedHat) {
           const hat = getHatById(userData.selectedHat);
           if (hat) {
             setSelectedHat(hat);
-            // Guardar en localStorage para persistencia inmediata
             localStorage.setItem('selectedHat', JSON.stringify(hat));
           }
         }
@@ -125,7 +122,7 @@ export default function App() {
     }
   };
 
-  // Función auxiliar para obtener sombrero por ID - CORREGIDA
+  // Función auxiliar para obtener sombrero por ID
   const getHatById = (hatId) => {
     const hats = [
       { 
@@ -310,7 +307,6 @@ export default function App() {
     }
   };
 
-  // Función equipHat corregida - SIN USEEFFECT INTERNO
   const equipHat = async (hat) => {
     try {
       const token = localStorage.getItem('token');
@@ -351,7 +347,7 @@ export default function App() {
     }
   };
 
-  // Cargar sombrero seleccionado desde localStorage al iniciar - CORREGIDO
+  // Cargar sombrero seleccionado desde localStorage al iniciar
   useEffect(() => {
     if (step === "world") {
       const savedHat = localStorage.getItem('selectedHat');
@@ -366,9 +362,7 @@ export default function App() {
     }
   }, [step]);
 
-  // --------------------------- 
-  // CONEXIÓN SOCKET PARA MULTIJUGADOR - CORREGIDA
-  // --------------------------- 
+  // CONEXIÓN SOCKET PARA MULTIJUGADOR
   useEffect(() => {
     if (step === "world" && username) {
       console.log(`🔗 Conectando a servidor Socket.io: ${SOCKET_API}`);
@@ -391,7 +385,7 @@ export default function App() {
           x: 150,
           y: 300,
           currentMap,
-          selectedHat: selectedHat // Enviar información del sombrero
+          selectedHat: selectedHat
         });
       });
 
@@ -450,7 +444,7 @@ export default function App() {
         }));
       });
 
-      // Jugador cambió sombrero - NUEVO EVENTO
+      // Jugador cambió sombrero
       newSocket.on("player-hat-changed", (data) => {
         console.log("🎩 Jugador cambió sombrero:", data.username, data.selectedHat);
         setOtherPlayers(prev => ({
@@ -479,7 +473,7 @@ export default function App() {
     }
   }, [step, username, color, currentMap, serverIP]);
 
-  // Enviar actualización de sombrero a otros jugadores - CORREGIDO
+  // Enviar actualización de sombrero a otros jugadores
   useEffect(() => {
     if (socket && selectedHat && step === "world") {
       console.log("🎩 Enviando actualización de sombrero:", selectedHat.name);
@@ -489,9 +483,7 @@ export default function App() {
     }
   }, [selectedHat, socket, step]);
 
-  // --------------------------- 
   // MONGODB: Login y Registro
-  // --------------------------- 
   const handleLogin = async () => {
     if (!username || !password) {
       alert("Por favor ingresa usuario y contraseña");
@@ -579,9 +571,7 @@ export default function App() {
     }
   };
 
-  // --------------------------- 
-  // MONGODB: Guardar datos automáticamente - CORREGIDO
-  // --------------------------- 
+  // MONGODB: Guardar datos automáticamente
   useEffect(() => {
     const saveUserData = async () => {
       const token = localStorage.getItem('token');
@@ -609,17 +599,13 @@ export default function App() {
     };
 
     // Guardar datos periódicamente y cuando cambien
-    const saveInterval = setInterval(saveUserData, 10000); // Cada 10 segundos
-    
-    // También guardar cuando cambien datos importantes
+    const saveInterval = setInterval(saveUserData, 10000);
     saveUserData();
     
     return () => clearInterval(saveInterval);
   }, [username, color, money, sandwichDone, educationalPoints, trofeos, step, selectedHat]);
 
-  // ---------------------------
   // SISTEMA DE LOGROS Y MISIONES
-  // ---------------------------
   const loadAchievementsData = async () => {
     try {
       const response = await fetch(`${ACHIEVEMENTS_API}/estado/${username}`);
@@ -675,9 +661,7 @@ export default function App() {
     }
   }, [username, step]);
 
-  // ---------------------------
   // SISTEMA DE CHAT
-  // ---------------------------
   const sendMessage = () => {
     if (chatMessage.trim() && socket) {
       socket.emit("send-message", chatMessage);
@@ -685,9 +669,7 @@ export default function App() {
     }
   };
 
-  // ---------------------------
   // INGREDIENTES Y COLORES
-  // ---------------------------
   const ingredients = [
     { name: "🥬 Lechuga", color: "#4caf50" },
     { name: "🍅 Tomate", color: "#e74c3c" },
@@ -706,9 +688,7 @@ export default function App() {
 
   const numToCssHex = (num) => "#" + num.toString(16).padStart(6, "0");
 
-  // ---------------------------
-  // FUNCIONES DE NAVEGACIÓN - SIN PUERTAS
-  // ---------------------------
+  // FUNCIONES DE NAVEGACIÓN
   const handleEnterLibrary = () => {
     setCurrentMap("library");
     audioService.playSuccessSound();
@@ -725,11 +705,7 @@ export default function App() {
     audioService.playSuccessSound();
   };
 
-  // ---------------------------
   // COMPONENTES DE MODALES
-  // ---------------------------
-
-  // Modal del Mapa
   const MapModal = () => {
     const locations = [
       { id: playerHouse, name: "🏠 Mi Casa", icon: "🏠", description: "Tu espacio personal" },
@@ -825,7 +801,6 @@ export default function App() {
     );
   };
 
-  // Modal de Perfil y Personalización - CORREGIDO
   const ProfileModal = () => {
     const [activeTab, setActiveTab] = useState('collection');
 
@@ -1269,9 +1244,7 @@ export default function App() {
     );
   };
 
-  // ---------------------------
-  // RENDERIZAR OTROS JUGADORES - MEJORADO CON SOMBREROS
-  // ---------------------------
+  // RENDERIZAR OTROS JUGADORES
   const renderOtherPlayers = () => {
     const currentPlayers = Object.values(otherPlayers)
       .filter(player => player.currentMap === currentMap);
@@ -1301,7 +1274,7 @@ export default function App() {
               </filter>
             </defs>
             
-            {/* Sombrero de otros jugadores - MEJORADO */}
+            {/* Sombrero de otros jugadores */}
             {player.selectedHat && (
               <g id="hat" transform="translate(0, -5)">
                 {player.selectedHat.id === 1 && ( // Gorro de Graduado
@@ -1462,7 +1435,7 @@ export default function App() {
     });
   };
 
-  // ---------- FUNCIONES DE LOGROS ----------
+  // FUNCIONES DE LOGROS
   const finishSandwich = async () => {
     const requiredIngredients = 4;
     const hasAllIngredients = sandwich.length === requiredIngredients;
@@ -1553,43 +1526,6 @@ export default function App() {
     }
   };
 
-  const handleQuizComplete = async (points) => {
-    setEducationalPoints(prev => prev + points);
-    setCurrentQuiz(null);
-    audioService.playSuccessSound();
-    await checkQuizAchievements();
-  };
-
-  const checkQuizAchievements = async () => {
-    try {
-      const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/4/progreso`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ incremento: 1 }),
-      });
-      
-      const resultadoMision = await responseMision.json();
-      if (resultadoMision && resultadoMision.completada) {
-        audioService.playSuccessSound();
-      }
-
-      const logroQuiz = logros.find(l => l.nombre.includes("Campeón") || l.nombre.includes("Conocimiento"));
-      if (logroQuiz && !logroQuiz.completado) {
-        const responseLogro = await fetch(`${ACHIEVEMENTS_API}/logros/${username}/${logroQuiz.id}/completar`, {
-          method: 'PATCH',
-        });
-        
-        const logroCompletado = await responseLogro.json();
-        if (logroCompletado) {
-          audioService.playSuccessSound();
-          loadAchievementsData();
-        }
-      }
-    } catch (error) {
-      console.error("Error actualizando logros de quiz:", error);
-    }
-  };
-
   const checkLibraryAchievements = async () => {
     try {
       const responseMision = await fetch(`${ACHIEVEMENTS_API}/misiones/${username}/3/progreso`, {
@@ -1620,7 +1556,7 @@ export default function App() {
     }
   };
 
-  // ---------- INITIALIZE p5 + Phaser - MEJORADO SIN PUERTAS ----------
+  // INITIALIZE p5 + Phaser
   useEffect(() => {
     if (step === "world" && !phaserRef.current) {
       // --- p5 sketch ---
@@ -1636,7 +1572,7 @@ export default function App() {
           s.noStroke();
           
           if (currentMap === "kitchen" || currentMap.startsWith("casa_")) {
-            // Cocina o Casa Personal (sin cambios)
+            // Cocina o Casa Personal
             s.background("#e9f3fb");
             s.fill("#f2e9dc");
             s.rect(0, 0, W, 220);
@@ -1713,7 +1649,7 @@ export default function App() {
             s.pop();
 
           } else if (currentMap === "library") {
-            // Biblioteca (sin puertas)
+            // Biblioteca
             s.background("#2c3e50");
             
             // Estantes de libros
@@ -1738,23 +1674,15 @@ export default function App() {
             s.rect(290, 370, 150, 110, 5);
             s.rect(460, 370, 150, 110, 5);
             
-            // Mesa de quiz
-            s.fill("#16a085");
-            s.rect(300, 200, 200, 80, 5);
-            s.fill("#1abc9c");
-            s.textSize(16);
-            s.textAlign(s.CENTER, s.CENTER);
-            s.text("📝 Área de Quizzes", 400, 240);
-            
           } else if (currentMap === "socratic") {
-            // SALÓN SOCRÁTICO COMPLETAMENTE REDISEÑADO - SIN PUERTAS
-            s.background("#4a708b"); // Cielo azul oscuro
+            // SALÓN SOCRÁTICO
+            s.background("#4a708b");
             
-            // Suelo con patrón de mosaico estilo Zelda
-            s.fill("#8fbc8f"); // Verde bosque
+            // Suelo
+            s.fill("#8fbc8f");
             s.rect(0, 400, 800, 200);
             
-            // Patrón de suelo (cuadrícula)
+            // Patrón de suelo
             s.stroke("#7a9f7a");
             s.strokeWeight(1);
             for (let x = 0; x < 800; x += 40) {
@@ -1764,29 +1692,24 @@ export default function App() {
               s.line(0, y, 800, y);
             }
             
-            // Columnas griegas (solo decorativas, sin colisiones)
+            // Columnas griegas
             s.noStroke();
-            s.fill("#f0e68c"); // Amarillo piedra
+            s.fill("#f0e68c");
             for (let i = 0; i < 4; i++) {
               const x = 150 + i * 200;
-              // Base
               s.rect(x - 10, 300, 20, 100);
-              // Capitel
               s.rect(x - 15, 300, 30, 10);
-              // Base inferior
               s.rect(x - 12, 395, 24, 5);
             }
             
-            // Estatuas decorativas (sin colisiones)
+            // Estatuas decorativas
             s.fill("#a9a9a9");
-            // Estatua izquierda
             s.ellipse(100, 320, 40, 50);
             s.rect(80, 350, 40, 40);
-            // Estatua derecha
             s.ellipse(700, 320, 40, 50);
             s.rect(680, 350, 40, 40);
             
-            // Área central de discusión (círculo de piedra)
+            // Área central de discusión
             s.fill("#daa520");
             s.circle(400, 350, 120);
             s.fill("#b8860b");
@@ -1796,12 +1719,10 @@ export default function App() {
             s.textAlign(s.CENTER, s.CENTER);
             s.text("💬", 400, 350);
             
-            // Bancas de piedra (decorativas)
+            // Bancas de piedra
             s.fill("#cd853f");
-            // Banca superior
             s.rect(200, 250, 120, 15, 5);
             s.rect(480, 250, 120, 15, 5);
-            // Banca inferior
             s.rect(200, 450, 120, 15, 5);
             s.rect(480, 450, 120, 15, 5);
             
@@ -1850,7 +1771,7 @@ export default function App() {
         const floor = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0);
         this.physics.add.existing(floor, true);
 
-        // Configuración de colisiones por mapa - SIN PUERTAS
+        // Configuración de colisiones por mapa
         const walls = [
           this.add.rectangle(400, 5, 800, 10, 0x000000, 0),
           this.add.rectangle(400, 595, 800, 10, 0x000000, 0),
@@ -1876,7 +1797,7 @@ export default function App() {
 
           obstacles = [...obstacles, table, chair1, chair2, stove];
         } else if (currentMap === "socratic") {
-          // SALÓN SOCRÁTICO: Solo bordes como obstáculos (estilo Zelda)
+          // SALÓN SOCRÁTICO: Solo bordes
           console.log("🎮 Salón Socrático: Sin obstáculos internos, solo bordes");
         } else if (currentMap === "library") {
           // Biblioteca: algunos obstáculos
@@ -2388,7 +2309,7 @@ export default function App() {
             }}
           />
           
-          {/* JUGADOR PRINCIPAL - MEJORADO CON SOMBRERO ADELANTE */}
+          {/* JUGADOR PRINCIPAL */}
           <div
             ref={svgRef}
             id="svg-player"
@@ -2446,17 +2367,17 @@ export default function App() {
                 />
               </g>
               
-              {/* Sombrero seleccionado - MEJORADO: posición más adelante */}
+              {/* Sombrero seleccionado */}
               {selectedHat && (
                 <g id="hat" transform="translate(0, -5)">
-                  {selectedHat.id === 1 && ( // Gorro de Graduado - MEJORADO
+                  {selectedHat.id === 1 && ( // Gorro de Graduado
                     <>
                       <rect x="20" y="15" width="60" height="12" fill="#1a1a1a" />
                       <rect x="25" y="27" width="50" height="6" fill="#0f0f0f" />
                       <path d="M25 15 Q50 5 75 15" fill="none" stroke="#ffd700" strokeWidth="3" />
                     </>
                   )}
-                  {selectedHat.id === 2 && ( // Corona - MEJORADO
+                  {selectedHat.id === 2 && ( // Corona
                     <>
                       <path d="M25 20 L35 12 L45 20 L43 25 L57 25 L55 20 L65 12 L75 20 L70 32 L30 32 Z" fill="#ffd700" stroke="#ff6b00" strokeWidth="1.5" />
                       <circle cx="35" cy="18" r="2" fill="#ff6b00" />
@@ -2464,28 +2385,28 @@ export default function App() {
                       <circle cx="65" cy="18" r="2" fill="#ff6b00" />
                     </>
                   )}
-                  {selectedHat.id === 3 && ( // Sombrero de Copa - MEJORADO
+                  {selectedHat.id === 3 && ( // Sombrero de Copa
                     <>
                       <rect x="25" y="10" width="50" height="6" fill="#2c2c2c" />
                       <ellipse cx="50" cy="20" rx="30" ry="8" fill="#1a1a1a" />
                       <rect x="40" y="20" width="20" height="2" fill="#333" />
                     </>
                   )}
-                  {selectedHat.id === 4 && ( // Gorra Deportiva - MEJORADO
+                  {selectedHat.id === 4 && ( // Gorra Deportiva
                     <>
                       <path d="M20 18 Q50 8 80 18 L75 28 L25 28 Z" fill="#e74c3c" />
                       <rect x="30" y="18" width="40" height="4" fill="#c0392b" />
                       <rect x="45" y="22" width="10" height="3" fill="#fff" />
                     </>
                   )}
-                  {selectedHat.id === 5 && ( // Casco de Seguridad - MEJORADO
+                  {selectedHat.id === 5 && ( // Casco de Seguridad
                     <>
                       <path d="M25 15 Q50 5 75 15 Q75 30 50 35 Q25 30 25 15" fill="#e74c3c" />
                       <rect x="40" y="20" width="20" height="8" fill="#2c3e50" />
                       <rect x="45" y="28" width="10" height="2" fill="#34495e" />
                     </>
                   )}
-                  {selectedHat.id === 6 && ( // Gorra Béisbol - MEJORADO
+                  {selectedHat.id === 6 && ( // Gorra Béisbol
                     <>
                       <path d="M20 17 Q50 7 80 17 L75 27 L25 27 Z" fill="#3498db" />
                       <rect x="30" y="17" width="40" height="4" fill="#2980b9" />
@@ -2538,7 +2459,7 @@ export default function App() {
             </svg>
           </div>
 
-          {/* OTROS JUGADORES - MEJORADO CON SOMBREROS VISIBLES */}
+          {/* OTROS JUGADORES */}
           {renderOtherPlayers()}
         </div>
       </div>
@@ -2767,6 +2688,7 @@ export default function App() {
         </div>
       )}
 
+      {/* BIBLIOTECA - INTERFAZ MEJORADA */}
       {currentMap === "library" && (
         <div style={{
           position: 'absolute',
@@ -2774,65 +2696,86 @@ export default function App() {
           left: '50%',
           transform: 'translate(-50%, -50%)',
           background: 'rgba(255,255,255,0.95)',
-          padding: '20px',
-          borderRadius: '10px',
+          padding: '25px',
+          borderRadius: '15px',
           zIndex: 100,
-          width: '400px',
-          textAlign: 'center'
+          width: '500px',
+          textAlign: 'center',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+          border: '3px solid #3498db'
         }}>
-          <h2>📚 Biblioteca Educativa</h2>
-          <div style={{ display: 'flex', gap: '10px', flexDirection: 'column', marginBottom: '20px' }}>
-            <button 
-              onClick={() => {
-                if (money >= 5) {
-                  setMoney(money - 5);
-                  setCurrentLesson('programming');
-                  audioService.playCoinSound();
-                }
-              }}
-              disabled={money < 5}
-              style={{
-                padding: '10px',
-                borderRadius: '5px',
-                backgroundColor: money >= 5 ? '#3498db' : '#95a5a6',
-                color: 'white',
-                border: 'none',
-                cursor: money >= 5 ? 'pointer' : 'not-allowed'
-              }}
-            >
-              🧠 Minijuego de Programación (5 monedas)
-            </button>
-            
-            <button 
-              onClick={() => setCurrentQuiz('computer_science')}
-              disabled={educationalPoints < 10}
-              style={{
-                padding: '10px',
-                borderRadius: '5px',
-                backgroundColor: educationalPoints >= 10 ? '#9b59b6' : '#95a5a6',
-                color: 'white',
-                border: 'none',
-                cursor: educationalPoints >= 10 ? 'pointer' : 'not-allowed'
-              }}
-            >
-              📝 Tomar Quiz CS (Requiere 10 puntos)
-            </button>
-            
-            <button onClick={() => setCurrentMap(playerHouse || "kitchen")} style={{
-              padding: '10px',
-              borderRadius: '5px',
-              backgroundColor: '#e74c3c',
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer'
+          <h2 style={{ marginTop: 0, color: '#2c3e50' }}>📚 Biblioteca Educativa</h2>
+          
+          <div style={{ 
+            display: 'flex', 
+            gap: '15px', 
+            flexDirection: 'column', 
+            marginBottom: '20px' 
+          }}>
+            {/* Minijuego de Programación */}
+            <div style={{
+              padding: '15px',
+              background: '#e8f4fd',
+              borderRadius: '10px',
+              border: '2px solid #3498db'
             }}>
-              🚪 Volver a la Cocina
-            </button>
+              <h3 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>🧠 Minijuego de Programación</h3>
+              <p style={{ margin: '0 0 15px 0', color: '#666' }}>
+                Aprende programación con lecciones interactivas estilo Duolingo
+              </p>
+              <button 
+                onClick={() => {
+                  if (money >= 5) {
+                    setMoney(money - 5);
+                    setCurrentLesson('programming');
+                    audioService.playCoinSound();
+                  }
+                }}
+                disabled={money < 5}
+                style={{
+                  padding: '12px 20px',
+                  borderRadius: '8px',
+                  backgroundColor: money >= 5 ? '#3498db' : '#95a5a6',
+                  color: 'white',
+                  border: 'none',
+                  cursor: money >= 5 ? 'pointer' : 'not-allowed',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  width: '100%'
+                }}
+              >
+                {money >= 5 ? '🎮 Jugar (5 monedas)' : '❌ Necesitas 5 monedas'}
+              </button>
+            </div>
           </div>
           
-          <div style={{ marginTop: '10px', padding: '10px', background: '#ecf0f1', borderRadius: '5px' }}>
-            <strong>Puntos Educativos:</strong> {educationalPoints}
+          <div style={{ 
+            padding: '12px', 
+            background: '#ecf0f1', 
+            borderRadius: '8px',
+            marginBottom: '15px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span><strong>💰 Monedas:</strong> {money}</span>
+              <span><strong>🧠 Puntos Educativos:</strong> {educationalPoints}</span>
+            </div>
+            <div style={{ fontSize: '14px', color: '#666' }}>
+              Completa actividades para ganar más puntos y monedas
+            </div>
           </div>
+          
+          <button onClick={() => setCurrentMap(playerHouse || "kitchen")} style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            backgroundColor: '#e74c3c',
+            color: 'white',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            width: '100%'
+          }}>
+            🚪 Volver a la Cocina
+          </button>
         </div>
       )}
 
@@ -3070,27 +3013,7 @@ export default function App() {
           <EducationalGame 
             onComplete={handleLessonComplete}
             cost={5}
-          />
-        </div>
-      )}
-
-      {/* Modal para QuizComponent */}
-      {currentQuiz && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <QuizComponent 
-            topic={currentQuiz}
-            onComplete={handleQuizComplete}
+            username={username}
           />
         </div>
       )}
