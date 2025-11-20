@@ -1,6 +1,7 @@
-// programming-api.js - API PARA MINIJUEGOS DE PROGRAMACIÓN
+// programming-api.js - API PARA MINIJUEGOS DE PROGRAMACIÓN CON OUTPUT
 const express = require('express');
 const cors = require('cors');
+const { VM } = require('vm2'); // Para ejecutar código de forma segura
 
 const app = express();
 const PORT = 2002;
@@ -27,8 +28,11 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'saludar' que debe retornar el texto '¡Hola Mundo!'",
-                plantilla: "function saludar() {\n  // Tu código aquí\n}",
-                solucion: "function saludar() {\n  return '¡Hola Mundo!';\n}"
+                plantilla: "function saludar() {\n  // Tu código aquí\n  return '¡Hola Mundo!';\n}",
+                solucion: "function saludar() {\n  return '¡Hola Mundo!';\n}",
+                pruebas: [
+                    { entrada: "saludar()", salidaEsperada: "¡Hola Mundo!" }
+                ]
             },
             
             pistas: [
@@ -55,8 +59,12 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'sumar' que recibe dos números y retorna su suma",
-                plantilla: "function sumar(a, b) {\n  // Tu código aquí\n}",
-                solucion: "function sumar(a, b) {\n  return a + b;\n}"
+                plantilla: "function sumar(a, b) {\n  // Tu código aquí\n  return a + b;\n}",
+                solucion: "function sumar(a, b) {\n  return a + b;\n}",
+                pruebas: [
+                    { entrada: "sumar(2, 3)", salidaEsperada: 5 },
+                    { entrada: "sumar(10, 5)", salidaEsperada: 15 }
+                ]
             },
             
             pistas: [
@@ -83,8 +91,12 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'esMayor' que retorna true si el número es mayor que 10",
-                plantilla: "function esMayor(numero) {\n  // Tu código aquí\n}",
-                solucion: "function esMayor(numero) {\n  if (numero > 10) {\n    return true;\n  }\n  return false;\n}"
+                plantilla: "function esMayor(numero) {\n  // Tu código aquí\n  if (numero > 10) {\n    return true;\n  }\n  return false;\n}",
+                solucion: "function esMayor(numero) {\n  if (numero > 10) {\n    return true;\n  }\n  return false;\n}",
+                pruebas: [
+                    { entrada: "esMayor(15)", salidaEsperada: true },
+                    { entrada: "esMayor(5)", salidaEsperada: false }
+                ]
             },
             
             pistas: [
@@ -111,8 +123,11 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'contarHasta5' que retorna un array con números del 1 al 5",
-                plantilla: "function contarHasta5() {\n  let resultado = [];\n  // Tu código aquí\n  return resultado;\n}",
-                solucion: "function contarHasta5() {\n  let resultado = [];\n  for (let i = 1; i <= 5; i++) {\n    resultado.push(i);\n  }\n  return resultado;\n}"
+                plantilla: "function contarHasta5() {\n  let resultado = [];\n  // Tu código aquí\n  for (let i = 1; i <= 5; i++) {\n    resultado.push(i);\n  }\n  return resultado;\n}",
+                solucion: "function contarHasta5() {\n  let resultado = [];\n  for (let i = 1; i <= 5; i++) {\n    resultado.push(i);\n  }\n  return resultado;\n}",
+                pruebas: [
+                    { entrada: "contarHasta5()", salidaEsperada: [1, 2, 3, 4, 5] }
+                ]
             },
             
             pistas: [
@@ -139,8 +154,12 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'duplicarArray' que recibe un array y retorna uno nuevo con cada número duplicado",
-                plantilla: "function duplicarArray(numeros) {\n  let resultado = [];\n  // Tu código aquí\n  return resultado;\n}",
-                solucion: "function duplicarArray(numeros) {\n  let resultado = [];\n  for (let i = 0; i < numeros.length; i++) {\n    resultado.push(numeros[i] * 2);\n  }\n  return resultado;\n}"
+                plantilla: "function duplicarArray(numeros) {\n  let resultado = [];\n  // Tu código aquí\n  for (let i = 0; i < numeros.length; i++) {\n    resultado.push(numeros[i] * 2);\n  }\n  return resultado;\n}",
+                solucion: "function duplicarArray(numeros) {\n  let resultado = [];\n  for (let i = 0; i < numeros.length; i++) {\n    resultado.push(numeros[i] * 2);\n  }\n  return resultado;\n}",
+                pruebas: [
+                    { entrada: "duplicarArray([1, 2, 3])", salidaEsperada: [2, 4, 6] },
+                    { entrada: "duplicarArray([5, 10])", salidaEsperada: [10, 20] }
+                ]
             },
             
             pistas: [
@@ -167,8 +186,12 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'elevarAlCuadrado' que recibe un array y retorna uno nuevo con cada número elevado al cuadrado usando map()",
-                plantilla: "function elevarAlCuadrado(numeros) {\n  // Tu código aquí\n}",
-                solucion: "function elevarAlCuadrado(numeros) {\n  return numeros.map(num => num * num);\n}"
+                plantilla: "function elevarAlCuadrado(numeros) {\n  // Tu código aquí\n  return numeros.map(num => num * num);\n}",
+                solucion: "function elevarAlCuadrado(numeros) {\n  return numeros.map(num => num * num);\n}",
+                pruebas: [
+                    { entrada: "elevarAlCuadrado([1, 2, 3])", salidaEsperada: [1, 4, 9] },
+                    { entrada: "elevarAlCuadrado([5, 10])", salidaEsperada: [25, 100] }
+                ]
             },
             
             pistas: [
@@ -195,8 +218,11 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'crearPersona' que recibe nombre y edad, y retorna un objeto con esas propiedades",
-                plantilla: "function crearPersona(nombre, edad) {\n  // Tu código aquí\n}",
-                solucion: "function crearPersona(nombre, edad) {\n  return { nombre: nombre, edad: edad };\n}"
+                plantilla: "function crearPersona(nombre, edad) {\n  // Tu código aquí\n  return { nombre: nombre, edad: edad };\n}",
+                solucion: "function crearPersona(nombre, edad) {\n  return { nombre: nombre, edad: edad };\n}",
+                pruebas: [
+                    { entrada: "crearPersona('Ana', 25)", salidaEsperada: { nombre: 'Ana', edad: 25 } }
+                ]
             },
             
             pistas: [
@@ -223,8 +249,12 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Convierte la función 'multiplicar' a una arrow function",
-                plantilla: "const multiplicar = // Tu código aquí",
-                solucion: "const multiplicar = (a, b) => a * b;"
+                plantilla: "const multiplicar = // Tu código aquí\nconst multiplicar = (a, b) => a * b;",
+                solucion: "const multiplicar = (a, b) => a * b;",
+                pruebas: [
+                    { entrada: "multiplicar(3, 4)", salidaEsperada: 12 },
+                    { entrada: "multiplicar(5, 6)", salidaEsperada: 30 }
+                ]
             },
             
             pistas: [
@@ -252,8 +282,12 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Completa la función 'dividirSeguro' que divide dos números, pero retorna null si hay división por cero",
-                plantilla: "function dividirSeguro(a, b) {\n  // Tu código aquí\n}",
-                solucion: "function dividirSeguro(a, b) {\n  if (b === 0) {\n    return null;\n  }\n  return a / b;\n}"
+                plantilla: "function dividirSeguro(a, b) {\n  // Tu código aquí\n  if (b === 0) {\n    return null;\n  }\n  return a / b;\n}",
+                solucion: "function dividirSeguro(a, b) {\n  if (b === 0) {\n    return null;\n  }\n  return a / b;\n}",
+                pruebas: [
+                    { entrada: "dividirSeguro(10, 2)", salidaEsperada: 5 },
+                    { entrada: "dividirSeguro(10, 0)", salidaEsperada: null }
+                ]
             },
             
             pistas: [
@@ -280,8 +314,11 @@ En JavaScript, se definen con la palabra clave 'function', seguida del nombre de
             
             reto: {
                 tarea: "Crea una función 'filtrarYTransformar' que recibe un array de números, filtra los mayores que 5 y los transforma a strings",
-                plantilla: "function filtrarYTransformar(numeros) {\n  // Tu código aquí\n}",
-                solucion: "function filtrarYTransformar(numeros) {\n  return numeros\n    .filter(num => num > 5)\n    .map(num => 'Número: ' + num);\n}"
+                plantilla: "function filtrarYTransformar(numeros) {\n  // Tu código aquí\n  return numeros\n    .filter(num => num > 5)\n    .map(num => 'Número: ' + num);\n}",
+                solucion: "function filtrarYTransformar(numeros) {\n  return numeros\n    .filter(num => num > 5)\n    .map(num => 'Número: ' + num);\n}",
+                pruebas: [
+                    { entrada: "filtrarYTransformar([1, 6, 3, 8])", salidaEsperada: ['Número: 6', 'Número: 8'] }
+                ]
             },
             
             pistas: [
@@ -388,7 +425,7 @@ app.patch('/lecciones/:jugadorId/:leccionId/completar', (req, res) => {
     });
 });
 
-// PATCH /lecciones/:jugadorId/:leccionId/validar - Validar código del usuario
+// PATCH /lecciones/:jugadorId/:leccionId/validar - Validar código del usuario CON OUTPUT
 app.patch('/lecciones/:jugadorId/:leccionId/validar', (req, res) => {
     const jugadorId = req.params.jugadorId;
     const leccionId = Number(req.params.leccionId);
@@ -400,17 +437,81 @@ app.patch('/lecciones/:jugadorId/:leccionId/validar', (req, res) => {
         return res.status(404).json({ error: 'Lección no encontrada' });
     }
     
-    // Validación del código
-    const esCorrecto = validarCodigo(codigoUsuario, leccion.contenido.reto.solucion);
+    // Validación del código con ejecución y pruebas
+    const resultadoValidacion = validarYEjecutarCodigo(codigoUsuario, leccion.contenido.reto);
     
     res.json({
-        esCorrecto: esCorrecto,
-        feedback: esCorrecto 
-            ? "✅ ¡Correcto! Tu código funciona perfectamente."
-            : "❌ Tu código necesita ajustes. Revisa la solución y intenta nuevamente.",
-        solucion: esCorrecto ? null : leccion.contenido.reto.solucion
+        esCorrecto: resultadoValidacion.esCorrecto,
+        feedback: resultadoValidacion.feedback,
+        output: resultadoValidacion.output,
+        pruebas: resultadoValidacion.pruebas,
+        solucion: resultadoValidacion.esCorrecto ? null : leccion.contenido.reto.solucion
     });
 });
+
+// Función mejorada para validar y ejecutar código
+function validarYEjecutarCodigo(codigoUsuario, reto) {
+    try {
+        // Crear un entorno de ejecución seguro
+        const vm = new VM({
+            timeout: 1000,
+            sandbox: {}
+        });
+        
+        // Ejecutar el código del usuario
+        vm.run(codigoUsuario);
+        
+        // Ejecutar las pruebas
+        const resultadosPruebas = [];
+        let todasLasPruebasPasaron = true;
+        
+        for (const prueba of reto.pruebas) {
+            try {
+                const resultado = vm.run(prueba.entrada);
+                const pruebaPasada = JSON.stringify(resultado) === JSON.stringify(prueba.salidaEsperada);
+                
+                resultadosPruebas.push({
+                    prueba: prueba.entrada,
+                    resultado: resultado,
+                    esperado: prueba.salidaEsperada,
+                    pasada: pruebaPasada
+                });
+                
+                if (!pruebaPasada) {
+                    todasLasPruebasPasaron = false;
+                }
+            } catch (error) {
+                resultadosPruebas.push({
+                    prueba: prueba.entrada,
+                    resultado: `Error: ${error.message}`,
+                    esperado: prueba.salidaEsperada,
+                    pasada: false
+                });
+                todasLasPruebasPasaron = false;
+            }
+        }
+        
+        // Validación de sintaxis adicional
+        const esValido = validarCodigo(codigoUsuario, reto.solucion);
+        
+        return {
+            esCorrecto: todasLasPruebasPasaron && esValido,
+            feedback: todasLasPruebasPasaron 
+                ? "✅ ¡Correcto! Tu código pasa todas las pruebas."
+                : "❌ Tu código necesita ajustes. Revisa los resultados de las pruebas.",
+            output: resultadosPruebas,
+            pruebas: resultadosPruebas
+        };
+        
+    } catch (error) {
+        return {
+            esCorrecto: false,
+            feedback: `❌ Error de sintaxis: ${error.message}`,
+            output: [],
+            pruebas: []
+        };
+    }
+}
 
 // PATCH /reiniciar-progreso/:jugadorId - Reiniciar progreso del jugador
 app.patch('/reiniciar-progreso/:jugadorId', (req, res) => {
@@ -578,7 +679,7 @@ app.listen(PORT, () => {
     console.log(`   GET    /lecciones/:id                      - Lección específica`);
     console.log(`   GET    /progreso/:jugadorId                - Progreso del jugador`);
     console.log(`   PATCH  /lecciones/:jugadorId/:leccionId/completar - Completar lección`);
-    console.log(`   PATCH  /lecciones/:jugadorId/:leccionId/validar - Validar código`);
+    console.log(`   PATCH  /lecciones/:jugadorId/:leccionId/validar - Validar código con OUTPUT`);
     console.log(`   PATCH  /reiniciar-progreso/:jugadorId      - Reiniciar progreso`);
     console.log(`   GET    /estado/:jugadorId                  - Estado completo`);
     console.log(`   POST   /inicializar-jugador                - Inicializar jugador`);

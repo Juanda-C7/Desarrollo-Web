@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
   },
   logrosCompletados: [String],
   misionesProgreso: Object,
+  programmingProgress: {
+    leccionesCompletadas: { type: [Number], default: [] },
+    leccionActual: { type: Number, default: 1 },
+    puntosProgramacion: { type: Number, default: 0 }
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -105,7 +110,12 @@ app.post("/register", async (req, res) => {
         total: 0
       },
       logrosCompletados: [],
-      misionesProgreso: {}
+      misionesProgreso: {},
+      programmingProgress: {
+        leccionesCompletadas: [],
+        leccionActual: 1,
+        puntosProgramacion: 0
+      }
     });
 
     await newUser.save();
@@ -124,7 +134,8 @@ app.post("/register", async (req, res) => {
         sandwichDone: newUser.sandwichDone,
         selectedHat: newUser.selectedHat,
         ownedHats: newUser.ownedHats,
-        trofeos: newUser.trofeos
+        trofeos: newUser.trofeos,
+        programmingProgress: newUser.programmingProgress
       }
     });
   } catch (error) {
@@ -168,7 +179,8 @@ app.post("/login", async (req, res) => {
         sandwichDone: user.sandwichDone,
         selectedHat: user.selectedHat,
         ownedHats: user.ownedHats,
-        trofeos: user.trofeos
+        trofeos: user.trofeos,
+        programmingProgress: user.programmingProgress
       }
     });
   } catch (error) {
@@ -195,7 +207,8 @@ app.get("/user", authenticateToken, async (req, res) => {
       ownedHats: user.ownedHats || [],
       trofeos: user.trofeos,
       logrosCompletados: user.logrosCompletados,
-      misionesProgreso: user.misionesProgreso
+      misionesProgreso: user.misionesProgreso,
+      programmingProgress: user.programmingProgress
     });
   } catch (error) {
     console.error("Error obteniendo usuario:", error);
@@ -206,7 +219,11 @@ app.get("/user", authenticateToken, async (req, res) => {
 // 🔹 ACTUALIZAR datos del usuario (protegido)
 app.put("/user", authenticateToken, async (req, res) => {
   try {
-    const { color, money, educationalPoints, sandwichDone, trofeos, logrosCompletados, misionesProgreso, selectedHat, ownedHats } = req.body;
+    const { 
+      color, money, educationalPoints, sandwichDone, trofeos, 
+      logrosCompletados, misionesProgreso, selectedHat, ownedHats,
+      programmingProgress 
+    } = req.body;
 
     const updateData = {};
     if (color !== undefined) updateData.color = color;
@@ -218,6 +235,7 @@ app.put("/user", authenticateToken, async (req, res) => {
     if (misionesProgreso !== undefined) updateData.misionesProgreso = misionesProgreso;
     if (selectedHat !== undefined) updateData.selectedHat = selectedHat;
     if (ownedHats !== undefined) updateData.ownedHats = ownedHats;
+    if (programmingProgress !== undefined) updateData.programmingProgress = programmingProgress;
 
     const updatedUser = await User.findOneAndUpdate(
       { username: req.user.username },
@@ -239,11 +257,42 @@ app.put("/user", authenticateToken, async (req, res) => {
         sandwichDone: updatedUser.sandwichDone,
         selectedHat: updatedUser.selectedHat,
         ownedHats: updatedUser.ownedHats,
-        trofeos: updatedUser.trofeos
+        trofeos: updatedUser.trofeos,
+        programmingProgress: updatedUser.programmingProgress
       }
     });
   } catch (error) {
     console.error("Error actualizando usuario:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔹 NUEVA RUTA: Actualizar puntos educativos
+app.post("/update-educational-points", authenticateToken, async (req, res) => {
+  try {
+    const { points, action = 'add' } = req.body;
+    
+    const user = await User.findOne({ username: req.user.username });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    if (action === 'add') {
+      user.educationalPoints += points;
+    } else if (action === 'subtract') {
+      user.educationalPoints = Math.max(0, user.educationalPoints - points);
+    } else if (action === 'set') {
+      user.educationalPoints = points;
+    }
+
+    await user.save();
+
+    res.json({
+      message: `Puntos educativos ${action === 'add' ? 'incrementados' : 'actualizados'} exitosamente`,
+      educationalPoints: user.educationalPoints
+    });
+  } catch (error) {
+    console.error("Error actualizando puntos educativos:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
@@ -418,11 +467,13 @@ const PORT = 4001;
 app.listen(PORT, () => {
   console.log(`✅ MongoDB Server running on http://localhost:${PORT}`);
   console.log(`📊 Conectado a: ${MONGODB_URI.split('@')[1]}`);
+  console.log(`🧠 Integrado con Programming API`);
   console.log(`🔐 Endpoints disponibles:`);
   console.log(`   POST   /register`);
   console.log(`   POST   /login`);
   console.log(`   GET    /user (protegido)`);
   console.log(`   PUT    /user (protegido)`);
+  console.log(`   POST   /update-educational-points (protegido)`);
   console.log(`   POST   /user/purchase-hat (protegido)`);
   console.log(`   POST   /user/equip-hat (protegido)`);
   console.log(`   POST   /sync-achievements (protegido)`);

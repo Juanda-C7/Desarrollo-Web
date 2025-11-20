@@ -50,6 +50,20 @@ export default function App() {
   const [socketStatus, setSocketStatus] = useState("disconnected");
   const [serverIP, setServerIP] = useState("localhost");
 
+  // Estados para pizzería
+  const [showPizzaMinigame, setShowPizzaMinigame] = useState(false);
+  const [showPizzaChefMinigame, setShowPizzaChefMinigame] = useState(false);
+  const [pizzaIngredients, setPizzaIngredients] = useState([]);
+  const [pizzaOrder, setPizzaOrder] = useState([]);
+  const [pizzaScore, setPizzaScore] = useState(0);
+  const [pizzaTimeLeft, setPizzaTimeLeft] = useState(60);
+  const [pizzaGameActive, setPizzaGameActive] = useState(false);
+  const [chefIngredients, setChefIngredients] = useState([]);
+  const [chefScore, setChefScore] = useState(0);
+  const [chefTimeLeft, setChefTimeLeft] = useState(45);
+  const [chefGameActive, setChefGameActive] = useState(false);
+  const [showPizzaMessage, setShowPizzaMessage] = useState(false);
+
   const phaserRef = useRef(null);
   const p5Ref = useRef(null);
   const svgRef = useRef(null);
@@ -59,6 +73,7 @@ export default function App() {
 
   const MONGODB_API = "http://" + window.location.hostname + ":4001";
   const ACHIEVEMENTS_API = "http://" + window.location.hostname + ":2001";
+  const PROGRAMMING_API = "http://" + window.location.hostname + ":2002";
 
   // Obtener IP del servidor desde parámetros URL
   useEffect(() => {
@@ -677,6 +692,16 @@ export default function App() {
     { name: "🥩 Carne", color: "#8b4513" },
   ];
 
+  // Ingredientes para pizza
+  const pizzaIngredientsList = [
+    { name: "🍅 Salsa", color: "#e74c3c" },
+    { name: "🧀 Queso", color: "#f1c40f" },
+    { name: "🍍 Piña", color: "#f39c12" },
+    { name: "🍄 Champiñones", color: "#8e44ad" },
+    { name: "🥓 Pepperoni", color: "#c0392b" },
+    { name: "🫑 Pimientos", color: "#27ae60" }
+  ];
+
   const colors = {
     amarillo: 0xffff00,
     rosa: 0xff69b4,
@@ -700,6 +725,11 @@ export default function App() {
     audioService.playSuccessSound();
   };
 
+  const handleEnterPizzeria = () => {
+    setCurrentMap("pizzeria");
+    audioService.playSuccessSound();
+  };
+
   const handleExitToKitchen = () => {
     setCurrentMap(playerHouse || "kitchen");
     audioService.playSuccessSound();
@@ -710,7 +740,8 @@ export default function App() {
     const locations = [
       { id: playerHouse, name: "🏠 Mi Casa", icon: "🏠", description: "Tu espacio personal" },
       { id: "library", name: "📚 Biblioteca", icon: "📚", description: "Minijuegos educativos" },
-      { id: "socratic", name: "🏛️ Salón Socrático", icon: "🏛️", description: "Área de discusión" }
+      { id: "socratic", name: "🏛️ Salón Socrático", icon: "🏛️", description: "Área de discusión" },
+      { id: "pizzeria", name: "🍕 Pizzería", icon: "🍕", description: "¡Dos minijuegos divertidos!" }
     ];
 
     return (
@@ -1489,6 +1520,150 @@ export default function App() {
     }
   };
 
+  // FUNCIONES PARA PIZZERÍA - MINIJUEGOS MEJORADOS
+
+  // Minijuego 1: Pizza Rush (temporizador y puntuación)
+  const startPizzaGame = () => {
+    setPizzaGameActive(true);
+    setPizzaTimeLeft(60);
+    setPizzaScore(0);
+    setPizzaOrder(generatePizzaOrder());
+    setPizzaIngredients([]);
+  };
+
+  const generatePizzaOrder = () => {
+    const numIngredients = Math.floor(Math.random() * 3) + 2; // 2-4 ingredientes
+    const order = [];
+    const availableIngredients = [...pizzaIngredientsList];
+    
+    for (let i = 0; i < numIngredients; i++) {
+      const randomIndex = Math.floor(Math.random() * availableIngredients.length);
+      order.push(availableIngredients[randomIndex]);
+      availableIngredients.splice(randomIndex, 1);
+    }
+    
+    return order;
+  };
+
+  const addPizzaIngredient = (ingredient) => {
+    if (!pizzaGameActive) return;
+    
+    setPizzaIngredients(prev => [...prev, ingredient]);
+    
+    // Verificar si el ingrediente es correcto
+    const currentIngredientIndex = pizzaIngredients.length;
+    if (currentIngredientIndex < pizzaOrder.length && 
+        ingredient.name === pizzaOrder[currentIngredientIndex].name) {
+      setPizzaScore(prev => prev + 10);
+      audioService.playSuccessSound();
+    } else {
+      setPizzaScore(prev => Math.max(0, prev - 5));
+      audioService.playErrorSound();
+    }
+  };
+
+  const finishPizzaGame = () => {
+    if (!pizzaGameActive) return;
+    
+    // Verificar si la pizza está correcta
+    const isPerfect = pizzaIngredients.length === pizzaOrder.length &&
+      pizzaIngredients.every((ing, index) => ing.name === pizzaOrder[index].name);
+    
+    if (isPerfect) {
+      setMoney(prev => prev + 20);
+      setShowPizzaMessage(true);
+      audioService.playCoinSound();
+    } else {
+      alert("❌ ¡La pizza no coincide con el pedido! Intenta nuevamente.");
+      audioService.playErrorSound();
+    }
+    
+    setPizzaGameActive(false);
+  };
+
+  // Minijuego 2: Chef's Memory (juego de memoria)
+  const startChefGame = () => {
+    setChefGameActive(true);
+    setChefTimeLeft(45);
+    setChefScore(0);
+    setChefIngredients([]);
+    showChefSequence();
+  };
+
+  const showChefSequence = () => {
+    const sequence = [];
+    const sequenceLength = Math.floor(Math.random() * 3) + 3; // 3-5 ingredientes
+    
+    for (let i = 0; i < sequenceLength; i++) {
+      const randomIngredient = pizzaIngredientsList[Math.floor(Math.random() * pizzaIngredientsList.length)];
+      sequence.push(randomIngredient);
+    }
+    
+    // Mostrar la secuencia al jugador
+    alert(`🧠 ¡Memoriza esta secuencia!\n${sequence.map(ing => ing.name).join(' → ')}`);
+    
+    setTimeout(() => {
+      setChefIngredients(sequence);
+    }, 3000);
+  };
+
+  const addChefIngredient = (ingredient) => {
+    if (!chefGameActive || chefIngredients.length === 0) return;
+    
+    const expectedIngredient = chefIngredients[0];
+    
+    if (ingredient.name === expectedIngredient.name) {
+      setChefScore(prev => prev + 15);
+      setChefIngredients(prev => prev.slice(1));
+      audioService.playSuccessSound();
+      
+      if (chefIngredients.length === 1) {
+        // Secuencia completada correctamente
+        finishChefGame(true);
+      }
+    } else {
+      setChefScore(prev => Math.max(0, prev - 10));
+      audioService.playErrorSound();
+      finishChefGame(false);
+    }
+  };
+
+  const finishChefGame = (success) => {
+    setChefGameActive(false);
+    
+    if (success) {
+      setMoney(prev => prev + 20);
+      setShowPizzaMessage(true);
+      audioService.playCoinSound();
+    } else {
+      alert("❌ ¡Secuencia incorrecta! Intenta nuevamente.");
+      audioService.playErrorSound();
+    }
+  };
+
+  // Temporizadores para los minijuegos
+  useEffect(() => {
+    if (pizzaGameActive && pizzaTimeLeft > 0) {
+      const timer = setTimeout(() => {
+        setPizzaTimeLeft(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (pizzaGameActive && pizzaTimeLeft === 0) {
+      finishPizzaGame();
+    }
+  }, [pizzaGameActive, pizzaTimeLeft]);
+
+  useEffect(() => {
+    if (chefGameActive && chefTimeLeft > 0) {
+      const timer = setTimeout(() => {
+        setChefTimeLeft(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (chefGameActive && chefTimeLeft === 0) {
+      finishChefGame(false);
+    }
+  }, [chefGameActive, chefTimeLeft]);
+
   const handleLessonComplete = async (points) => {
     setEducationalPoints(prev => prev + points);
     setCurrentLesson(null);
@@ -1739,6 +1914,88 @@ export default function App() {
             s.ellipse(750, 500, 30, 20);
             s.ellipse(50, 500, 30, 20);
             
+          } else if (currentMap === "pizzeria") {
+            // PIZZERÍA MEJORADA - CON MESAS COMO LA COCINA
+            s.background("#ff6b6b");
+            
+            // Suelo con patrón de azulejos
+            s.fill("#e55039");
+            s.rect(0, 0, 800, 600);
+            
+            // Patrón de azulejos
+            s.stroke("#ff7979");
+            s.strokeWeight(1);
+            for (let x = 0; x < 800; x += 40) {
+              for (let y = 0; y < 600; y += 40) {
+                s.noFill();
+                s.rect(x, y, 40, 40);
+              }
+            }
+            
+            // MESAS DE PIZZA (como en la cocina)
+            // Mesa 1 - Pizza Rush
+            s.push();
+            s.noStroke();
+            s.fill("#00000022");
+            s.ellipse(200, 200, 160, 30);
+            s.fill("#cd853f");
+            s.rectMode(s.CENTER);
+            s.rect(200, 170, 220, 80, 8);
+            s.fill("#8b5a2b");
+            s.rect(130, 220, 18, 60, 4);
+            s.rect(270, 220, 18, 60, 4);
+            s.pop();
+
+            // Mesa 2 - Chef's Memory
+            s.push();
+            s.noStroke();
+            s.fill("#00000022");
+            s.ellipse(600, 200, 160, 30);
+            s.fill("#cd853f");
+            s.rectMode(s.CENTER);
+            s.rect(600, 170, 220, 80, 8);
+            s.fill("#8b5a2b");
+            s.rect(530, 220, 18, 60, 4);
+            s.rect(670, 220, 18, 60, 4);
+            s.pop();
+
+            // Mostrador principal
+            s.fill("#8B4513");
+            s.rect(400, 400, 600, 80, 10);
+            s.fill("#A0522D");
+            s.rect(420, 380, 560, 20, 5);
+            
+            // Horno de pizza
+            s.fill("#2c3e50");
+            s.rect(650, 300, 100, 150, 10);
+            s.fill("#e74c3c");
+            s.rect(660, 310, 80, 60, 5);
+            s.fill("#f39c12");
+            s.ellipse(700, 340, 30, 20);
+            
+            // Estantes de ingredientes
+            s.fill("#8B4513");
+            s.rect(50, 100, 120, 80, 5);
+            s.fill("#CD5C5C");
+            s.rect(60, 110, 30, 20, 3);
+            s.fill("#F4A460");
+            s.rect(100, 110, 30, 20, 3);
+            s.fill("#32CD32");
+            s.rect(140, 110, 20, 20, 3);
+            
+            // Letrero de la pizzería
+            s.fill("#ffd700");
+            s.rect(400, 50, 200, 40, 10);
+            s.fill("#c0392b");
+            s.textSize(20);
+            s.textAlign(s.CENTER, s.CENTER);
+            s.text("🍕 PIZZERÍA ROUNDY", 400, 70);
+            
+            // Indicadores en las mesas
+            s.fill("#ff0000");
+            s.textSize(16);
+            s.text("🍕 Pizza Rush", 200, 140);
+            s.text("🧠 Chef's Memory", 600, 140);
           }
         };
       };
@@ -1762,6 +2019,8 @@ export default function App() {
       let player;
       let cursors;
       let table;
+      let pizzaTable1;
+      let pizzaTable2;
       let keyA;
       let lastSentPosition = { x: 0, y: 0 };
 
@@ -1810,6 +2069,21 @@ export default function App() {
           this.physics.add.existing(computerArea, true);
           
           obstacles = [...obstacles, bookshelf1, bookshelf2, computerArea];
+        } else if (currentMap === "pizzeria") {
+          // PIZZERÍA: Obstáculos
+          pizzaTable1 = this.add.rectangle(200, 170, 240, 100, 0x000000, 0);
+          pizzaTable2 = this.add.rectangle(600, 170, 240, 100, 0x000000, 0);
+          const counter = this.add.rectangle(400, 440, 600, 80, 0x000000, 0);
+          const oven = this.add.rectangle(650, 375, 100, 150, 0x000000, 0);
+          const ingredientShelf = this.add.rectangle(110, 140, 120, 80, 0x000000, 0);
+          
+          this.physics.add.existing(pizzaTable1, true);
+          this.physics.add.existing(pizzaTable2, true);
+          this.physics.add.existing(counter, true);
+          this.physics.add.existing(oven, true);
+          this.physics.add.existing(ingredientShelf, true);
+          
+          obstacles = [...obstacles, pizzaTable1, pizzaTable2, counter, oven, ingredientShelf];
         }
 
         // Posición inicial
@@ -1841,6 +2115,34 @@ export default function App() {
             .setDepth(1000);
           
           window.tableExclamation = exclamation;
+        }
+
+        // Indicador de interacción para pizzería
+        if (currentMap === "pizzeria") {
+          const pizzaExclamation1 = this.add
+            .text(pizzaTable1.x, pizzaTable1.y - 70, "🍕", {
+              font: "32px Arial",
+              fill: "#ff0000",
+              fontStyle: "bold",
+              stroke: "#ffffff",
+              strokeThickness: 4
+            })
+            .setOrigin(0.5, 0.5)
+            .setDepth(1000);
+          
+          const pizzaExclamation2 = this.add
+            .text(pizzaTable2.x, pizzaTable2.y - 70, "🧠", {
+              font: "32px Arial",
+              fill: "#3498db",
+              fontStyle: "bold",
+              stroke: "#ffffff",
+              strokeThickness: 4
+            })
+            .setOrigin(0.5, 0.5)
+            .setDepth(1000);
+          
+          window.pizzaExclamation1 = pizzaExclamation1;
+          window.pizzaExclamation2 = pizzaExclamation2;
         }
 
         cursors = this.input.keyboard.createCursorKeys();
@@ -1879,6 +2181,36 @@ export default function App() {
           }
         }
 
+        // Interacción con pizzería
+        if (currentMap === "pizzeria") {
+          const distToPizzaTable1 = Phaser.Math.Distance.Between(
+            player.x, player.y, 200, 170
+          );
+          const distToPizzaTable2 = Phaser.Math.Distance.Between(
+            player.x, player.y, 600, 170
+          );
+          
+          if (distToPizzaTable1 < 90) {
+            window.nearPizzaTable1 = true;
+            if (Phaser.Input.Keyboard.JustDown(keyA)) {
+              const ev = new CustomEvent("openPizzaGame1");
+              window.dispatchEvent(ev);
+            }
+          } else {
+            window.nearPizzaTable1 = false;
+          }
+          
+          if (distToPizzaTable2 < 90) {
+            window.nearPizzaTable2 = true;
+            if (Phaser.Input.Keyboard.JustDown(keyA)) {
+              const ev = new CustomEvent("openPizzaGame2");
+              window.dispatchEvent(ev);
+            }
+          } else {
+            window.nearPizzaTable2 = false;
+          }
+        }
+
         // Enviar posición al servidor
         const currentPos = { x: Math.round(player.x), y: Math.round(player.y) };
         const distance = Phaser.Math.Distance.Between(
@@ -1905,6 +2237,28 @@ export default function App() {
             window.tableExclamation.setScale(1);
           }
         }
+
+        if (window.pizzaExclamation1) {
+          const shouldShow = currentMap === "pizzeria";
+          window.pizzaExclamation1.setVisible(shouldShow);
+          
+          if (shouldShow && window.nearPizzaTable1) {
+            window.pizzaExclamation1.setScale(1 + Math.sin(this.time.now / 200) * 0.2);
+          } else {
+            window.pizzaExclamation1.setScale(1);
+          }
+        }
+
+        if (window.pizzaExclamation2) {
+          const shouldShow = currentMap === "pizzeria";
+          window.pizzaExclamation2.setVisible(shouldShow);
+          
+          if (shouldShow && window.nearPizzaTable2) {
+            window.pizzaExclamation2.setScale(1 + Math.sin(this.time.now / 200) * 0.2);
+          } else {
+            window.pizzaExclamation2.setScale(1);
+          }
+        }
       }
 
       phaserRef.current = new Phaser.Game(config);
@@ -1922,10 +2276,16 @@ export default function App() {
             svgEl.style.top = `${y}px`;
 
             const nearTable = !!window.nearTable;
+            const nearPizzaTable1 = !!window.nearPizzaTable1;
+            const nearPizzaTable2 = !!window.nearPizzaTable2;
             
             const ev1 = new CustomEvent("nearTableUpdate", { detail: { near: nearTable } });
+            const ev2 = new CustomEvent("nearPizzaTable1Update", { detail: { near: nearPizzaTable1 } });
+            const ev3 = new CustomEvent("nearPizzaTable2Update", { detail: { near: nearPizzaTable2 } });
             
             window.dispatchEvent(ev1);
+            window.dispatchEvent(ev2);
+            window.dispatchEvent(ev3);
           }
         } catch (err) {}
         rafRef.current = requestAnimationFrame(updateSvg);
@@ -1940,16 +2300,42 @@ export default function App() {
         }
       };
       
+      const openPizzaGame1Listener = () => {
+        setShowPizzaMinigame(true);
+        startPizzaGame();
+      };
+      
+      const openPizzaGame2Listener = () => {
+        setShowPizzaChefMinigame(true);
+        startChefGame();
+      };
+      
       const nearTableListener = (e) => {
         setShowPressAHint(e.detail.near && !sandwichDone && (currentMap === "kitchen" || currentMap.startsWith("casa_")));
       };
 
+      const nearPizzaTable1Listener = (e) => {
+        setShowPressAHint(e.detail.near && currentMap === "pizzeria");
+      };
+
+      const nearPizzaTable2Listener = (e) => {
+        setShowPressAHint(e.detail.near && currentMap === "pizzeria");
+      };
+
       window.addEventListener("openSandwich", openListener);
+      window.addEventListener("openPizzaGame1", openPizzaGame1Listener);
+      window.addEventListener("openPizzaGame2", openPizzaGame2Listener);
       window.addEventListener("nearTableUpdate", nearTableListener);
+      window.addEventListener("nearPizzaTable1Update", nearPizzaTable1Listener);
+      window.addEventListener("nearPizzaTable2Update", nearPizzaTable2Listener);
 
       const cleanup = () => {
         window.removeEventListener("openSandwich", openListener);
+        window.removeEventListener("openPizzaGame1", openPizzaGame1Listener);
+        window.removeEventListener("openPizzaGame2", openPizzaGame2Listener);
         window.removeEventListener("nearTableUpdate", nearTableListener);
+        window.removeEventListener("nearPizzaTable1Update", nearPizzaTable1Listener);
+        window.removeEventListener("nearPizzaTable2Update", nearPizzaTable2Listener);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
       phaserRef.currentCleanup = cleanup;
@@ -2206,7 +2592,8 @@ export default function App() {
         {currentMap === "kitchen" ? " Cocina" : 
          currentMap.startsWith("casa_") ? " Mi Casa" :
          currentMap === "library" ? " Biblioteca" : 
-         " Salón Socrático"} - Muévete con las flechas.
+         currentMap === "socratic" ? " Salón Socrático" :
+         currentMap === "pizzeria" ? " Pizzería" : " Desconocido"} - Muévete con las flechas.
         {Object.values(otherPlayers).filter(p => p.currentMap === currentMap).length > 0 && 
           ` - Jugadores en esta área: ${Object.values(otherPlayers).filter(p => p.currentMap === currentMap).length + 1}`
         }
@@ -2646,6 +3033,23 @@ export default function App() {
         </div>
       )}
 
+      {showPressAHint && currentMap === "pizzeria" && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#222",
+            color: "#fff",
+            padding: "8px 12px",
+            borderRadius: 8,
+          }}
+        >
+          Presiona <b>A</b> para jugar minijuegos
+        </div>
+      )}
+
       {/* Mensaje de sandwich completado */}
       {showSandwichMessage && (currentMap === "kitchen" || currentMap.startsWith("casa_")) && (
         <div
@@ -2668,6 +3072,48 @@ export default function App() {
           <span>✅ ¡Sandwich completado! +5 monedas</span>
           <button 
             onClick={() => setShowSandwichMessage(false)}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              color: 'white',
+              borderRadius: '50%',
+              width: 24,
+              height: 24,
+              cursor: 'pointer',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Cerrar mensaje"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Mensaje de pizza completada */}
+      {showPizzaMessage && currentMap === "pizzeria" && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#e67e22",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+            zIndex: 100
+          }}
+        >
+          <span>✅ ¡Minijuego completado! +20 monedas</span>
+          <button 
+            onClick={() => setShowPizzaMessage(false)}
             style={{
               background: 'rgba(255,255,255,0.2)',
               border: '1px solid rgba(255,255,255,0.5)',
@@ -2764,18 +3210,7 @@ export default function App() {
             </div>
           </div>
           
-          <button onClick={() => setCurrentMap(playerHouse || "kitchen")} style={{
-            padding: '10px 20px',
-            borderRadius: '8px',
-            backgroundColor: '#e74c3c',
-            color: 'white',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            width: '100%'
-          }}>
-            🚪 Volver a la Cocina
-          </button>
+          {/* QUITÉ EL BOTÓN DE VOLVER A LA COCINA */}
         </div>
       )}
 
@@ -2991,6 +3426,432 @@ export default function App() {
               textAlign: 'center'
             }}>
               💡 <strong>Instrucciones:</strong> Arrastra todos los ingredientes al sandwich
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Minijuego 1: Pizza Rush */}
+      {showPizzaMinigame && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div
+            style={{
+              width: 600,
+              background: "#fff",
+              border: "3px solid #e67e22",
+              padding: 25,
+              borderRadius: 15,
+              position: 'relative'
+            }}
+          >
+            <h3 style={{ marginTop: 0, textAlign: 'center', color: '#e67e22' }}>🍕 Pizza Rush</h3>
+            
+            {/* Información del juego */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 20,
+              padding: '10px',
+              background: '#fff3e0',
+              borderRadius: '8px'
+            }}>
+              <div>
+                <strong>Tiempo: </strong>
+                <span style={{ 
+                  color: pizzaTimeLeft > 10 ? '#27ae60' : '#e74c3c',
+                  fontWeight: 'bold'
+                }}>
+                  {pizzaTimeLeft}s
+                </span>
+              </div>
+              <div>
+                <strong>Puntuación: </strong>
+                <span style={{ fontWeight: 'bold', color: '#3498db' }}>
+                  {pizzaScore}
+                </span>
+              </div>
+            </div>
+
+            {/* Pedido actual */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>📋 Pedido Actual:</h4>
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                padding: '10px',
+                background: '#ecf0f1',
+                borderRadius: '8px'
+              }}>
+                {pizzaOrder.map((ing, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: '8px',
+                      background: ing.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '24px',
+                      border: '2px solid #333'
+                    }}
+                    title={ing.name}
+                  >
+                    {ing.name.split(' ')[0]}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pizza en preparación */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>👨‍🍳 Tu Pizza:</h4>
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                padding: '15px',
+                background: '#fff9e6',
+                borderRadius: '8px',
+                minHeight: '80px'
+              }}>
+                {pizzaIngredients.map((ing, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: '6px',
+                      background: ing.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '20px',
+                      border: '2px solid #333'
+                    }}
+                    title={ing.name}
+                  >
+                    {ing.name.split(' ')[0]}
+                  </div>
+                ))}
+                {pizzaIngredients.length === 0 && (
+                  <div style={{ color: '#e67e22', fontStyle: 'italic' }}>
+                    Agrega ingredientes según el pedido...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Ingredientes disponibles */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>🥫 Ingredientes:</h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 12,
+                  justifyContent: "center",
+                }}
+              >
+                {pizzaIngredientsList.map((ing) => (
+                  <button
+                    key={ing.name}
+                    onClick={() => addPizzaIngredient(ing)}
+                    disabled={!pizzaGameActive}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 12,
+                      background: ing.color,
+                      display: "flex",
+                      flexDirection: 'column',
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 24,
+                      cursor: pizzaGameActive ? "pointer" : "not-allowed",
+                      border: '2px solid #333',
+                      boxShadow: '0 3px 6px rgba(0,0,0,0.16)',
+                      transition: 'transform 0.2s',
+                      opacity: pizzaGameActive ? 1 : 0.6
+                    }}
+                    onMouseEnter={(e) => {
+                      if (pizzaGameActive) e.currentTarget.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (pizzaGameActive) e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                    title={ing.name}
+                  >
+                    {ing.name.split(" ")[0]}
+                    <div style={{ fontSize: 10, color: 'white', marginTop: 4, fontWeight: 'bold' }}>
+                      {ing.name.split(" ")[1]}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 12,
+                marginTop: 20,
+                flexWrap: 'wrap'
+              }}
+            >
+              <button
+                onClick={finishPizzaGame}
+                disabled={!pizzaGameActive}
+                style={{
+                  padding: "12px 24px",
+                  background: pizzaGameActive ? "#4caf50" : "#ccc",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: pizzaGameActive ? "pointer" : "not-allowed",
+                  fontWeight: 'bold',
+                  fontSize: 16,
+                  minWidth: 160
+                }}
+              >
+                {pizzaGameActive ? "✅ Terminar Pizza" : "Tiempo agotado"}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowPizzaMinigame(false);
+                  setPizzaGameActive(false);
+                }}
+                style={{
+                  padding: "12px 20px",
+                  background: "#f44336",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontWeight: 'bold'
+                }}
+              >
+                ❌ Salir
+              </button>
+            </div>
+            
+            <div style={{
+              marginTop: 20,
+              padding: 12,
+              background: '#e3f2fd',
+              borderRadius: 8,
+              fontSize: 13,
+              textAlign: 'center',
+              border: '1px solid #3498db'
+            }}>
+              💡 <strong>Instrucciones:</strong> Agrega los ingredientes en el orden correcto del pedido. 
+              ¡Cada pizza perfecta te da +20 monedas!
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Minijuego 2: Chef's Memory */}
+      {showPizzaChefMinigame && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div
+            style={{
+              width: 600,
+              background: "#fff",
+              border: "3px solid #3498db",
+              padding: 25,
+              borderRadius: 15,
+              position: 'relative'
+            }}
+          >
+            <h3 style={{ marginTop: 0, textAlign: 'center', color: '#3498db' }}>🧠 Chef's Memory</h3>
+            
+            {/* Información del juego */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 20,
+              padding: '10px',
+              background: '#e8f4fd',
+              borderRadius: '8px'
+            }}>
+              <div>
+                <strong>Tiempo: </strong>
+                <span style={{ 
+                  color: chefTimeLeft > 10 ? '#27ae60' : '#e74c3c',
+                  fontWeight: 'bold'
+                }}>
+                  {chefTimeLeft}s
+                </span>
+              </div>
+              <div>
+                <strong>Puntuación: </strong>
+                <span style={{ fontWeight: 'bold', color: '#3498db' }}>
+                  {chefScore}
+                </span>
+              </div>
+            </div>
+
+            {/* Secuencia a repetir */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>
+                {chefIngredients.length > 0 ? "🔁 Repite la secuencia:" : "⏳ Memorizando..."}
+              </h4>
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                padding: '15px',
+                background: chefIngredients.length > 0 ? '#fff3cd' : '#ecf0f1',
+                borderRadius: '8px',
+                minHeight: '80px'
+              }}>
+                {chefIngredients.length > 0 ? (
+                  <div style={{ color: '#666', fontStyle: 'italic' }}>
+                    Haz clic en los ingredientes en el orden correcto
+                  </div>
+                ) : (
+                  <div style={{ color: '#666', fontStyle: 'italic' }}>
+                    Preparando secuencia...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Ingredientes para seleccionar */}
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>🥫 Selecciona ingredientes:</h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 12,
+                  justifyContent: "center",
+                }}
+              >
+                {pizzaIngredientsList.map((ing) => (
+                  <button
+                    key={ing.name}
+                    onClick={() => addChefIngredient(ing)}
+                    disabled={!chefGameActive || chefIngredients.length === 0}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 12,
+                      background: ing.color,
+                      display: "flex",
+                      flexDirection: 'column',
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 24,
+                      cursor: (chefGameActive && chefIngredients.length > 0) ? "pointer" : "not-allowed",
+                      border: '2px solid #333',
+                      boxShadow: '0 3px 6px rgba(0,0,0,0.16)',
+                      transition: 'transform 0.2s',
+                      opacity: (chefGameActive && chefIngredients.length > 0) ? 1 : 0.6
+                    }}
+                    onMouseEnter={(e) => {
+                      if (chefGameActive && chefIngredients.length > 0) e.currentTarget.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (chefGameActive && chefIngredients.length > 0) e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                    title={ing.name}
+                  >
+                    {ing.name.split(" ")[0]}
+                    <div style={{ fontSize: 10, color: 'white', marginTop: 4, fontWeight: 'bold' }}>
+                      {ing.name.split(" ")[1]}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: 12,
+                marginTop: 20,
+                flexWrap: 'wrap'
+              }}
+            >
+              <button
+                onClick={() => finishChefGame(false)}
+                disabled={!chefGameActive}
+                style={{
+                  padding: "12px 24px",
+                  background: chefGameActive ? "#e74c3c" : "#ccc",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: chefGameActive ? "pointer" : "not-allowed",
+                  fontWeight: 'bold',
+                  fontSize: 16
+                }}
+              >
+                {chefGameActive ? "❌ Rendirse" : "Juego terminado"}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowPizzaChefMinigame(false);
+                  setChefGameActive(false);
+                }}
+                style={{
+                  padding: "12px 20px",
+                  background: "#95a5a6",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontWeight: 'bold'
+                }}
+              >
+                🚪 Salir
+              </button>
+            </div>
+            
+            <div style={{
+              marginTop: 20,
+              padding: 12,
+              background: '#fff3cd',
+              borderRadius: 8,
+              fontSize: 13,
+              textAlign: 'center',
+              border: '1px solid #ffc107'
+            }}>
+              💡 <strong>Instrucciones:</strong> Memoriza la secuencia de ingredientes y repítela en el mismo orden. 
+              ¡Cada secuencia perfecta te da +20 monedas!
             </div>
           </div>
         </div>

@@ -11,6 +11,8 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
   const [mostrarPistas, setMostrarPistas] = useState(false);
   const [mostrarSolucion, setMostrarSolucion] = useState(false);
   const [progreso, setProgreso] = useState(null);
+  const [output, setOutput] = useState([]);
+  const [mostrarOutput, setMostrarOutput] = useState(false);
 
   useEffect(() => {
     cargarLecciones();
@@ -49,8 +51,11 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
             explicacion: "Una función es un bloque de código reutilizable que realiza una tarea específica.",
             reto: {
               tarea: "Completa la función 'saludar' que debe retornar el texto '¡Hola Mundo!'",
-              plantilla: "function saludar() {\n  // Tu código aquí\n}",
-              solucion: "function saludar() {\n  return '¡Hola Mundo!';\n}"
+              plantilla: "function saludar() {\n  // Tu código aquí\n  return '¡Hola Mundo!';\n}",
+              solucion: "function saludar() {\n  return '¡Hola Mundo!';\n}",
+              pruebas: [
+                { entrada: "saludar()", salidaEsperada: "¡Hola Mundo!" }
+              ]
             },
             pistas: [
               "Usa la palabra clave 'return'",
@@ -86,6 +91,7 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
     
     setCargando(true);
     setFeedback('');
+    setOutput([]);
 
     try {
       const response = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/validar`, {
@@ -100,6 +106,8 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
 
       if (result) {
         setFeedback(result.feedback);
+        setOutput(result.output || []);
+        setMostrarOutput(true);
         
         if (result.esCorrecto) {
           await audioService.playSuccessSound();
@@ -142,6 +150,42 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
     }
   };
 
+  const ejecutarPruebas = async () => {
+    if (!codigoUsuario.trim() || !leccionActual) return;
+    
+    setCargando(true);
+    setFeedback('');
+
+    try {
+      const response = await fetch(`http://localhost:2002/lecciones/${username}/${leccionActual.id}/validar`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ codigoUsuario }),
+      });
+
+      const result = await response.json();
+
+      if (result) {
+        setOutput(result.output || []);
+        setMostrarOutput(true);
+        setFeedback('🔍 Ejecutando pruebas...');
+        
+        if (result.esCorrecto) {
+          setFeedback('✅ ¡Todas las pruebas pasaron!');
+        } else {
+          setFeedback('❌ Algunas pruebas fallaron. Revisa el output.');
+        }
+      }
+    } catch (error) {
+      console.error('Error ejecutando pruebas:', error);
+      setFeedback('Error ejecutando pruebas.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
   const seleccionarLeccion = (leccion) => {
     if (leccion.desbloqueada) {
       setLeccionActual(leccion);
@@ -150,6 +194,8 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
       setMostrarExplicacion(true);
       setMostrarPistas(false);
       setMostrarSolucion(false);
+      setMostrarOutput(false);
+      setOutput([]);
     }
   };
 
@@ -172,7 +218,7 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
       background: 'white',
       padding: '25px',
       borderRadius: '15px',
-      width: '700px',
+      width: '800px',
       maxWidth: '90vw',
       maxHeight: '80vh',
       overflowY: 'auto',
@@ -361,22 +407,73 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
       </div>
 
       {/* Editor de código */}
-      <textarea
-        value={codigoUsuario}
-        onChange={(e) => setCodigoUsuario(e.target.value)}
-        placeholder="Escribe tu código aquí..."
-        style={{ 
-          width: '100%', 
-          height: '150px', 
-          margin: '10px 0', 
-          padding: '10px',
-          borderRadius: '5px',
-          border: '2px solid #bdc3c7',
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          resize: 'vertical'
-        }}
-      />
+      <div style={{ marginBottom: '15px' }}>
+        <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>📝 Tu Código:</h4>
+        <textarea
+          value={codigoUsuario}
+          onChange={(e) => setCodigoUsuario(e.target.value)}
+          placeholder="Escribe tu código aquí..."
+          style={{ 
+            width: '100%', 
+            height: '150px', 
+            margin: '10px 0', 
+            padding: '10px',
+            borderRadius: '5px',
+            border: '2px solid #bdc3c7',
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            resize: 'vertical'
+          }}
+        />
+      </div>
+
+      {/* Output de pruebas */}
+      {mostrarOutput && output.length > 0 && (
+        <div style={{ marginBottom: '15px' }}>
+          <button 
+            onClick={() => setMostrarOutput(!mostrarOutput)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: '#9b59b6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              marginBottom: '10px'
+            }}
+          >
+            {mostrarOutput ? '📊 Ocultar Resultados' : '📊 Mostrar Resultados'}
+          </button>
+          
+          {mostrarOutput && (
+            <div style={{ 
+              marginTop: '10px', 
+              padding: '10px', 
+              background: '#2c3e50', 
+              borderRadius: '5px',
+              color: 'white'
+            }}>
+              <strong>📊 Resultado de Pruebas:</strong>
+              {output.map((prueba, index) => (
+                <div key={index} style={{ 
+                  marginTop: '8px', 
+                  padding: '8px', 
+                  background: prueba.pasada ? '#27ae60' : '#e74c3c',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontFamily: 'monospace'
+                }}>
+                  <div><strong>Prueba:</strong> {prueba.prueba}</div>
+                  <div><strong>Resultado:</strong> {JSON.stringify(prueba.resultado)}</div>
+                  <div><strong>Esperado:</strong> {JSON.stringify(prueba.esperado)}</div>
+                  <div><strong>Estado:</strong> {prueba.pasada ? '✅ PASÓ' : '❌ FALLÓ'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Botones de acción */}
       <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -395,6 +492,22 @@ const EducationalGame = ({ onComplete, cost = 5, username }) => {
           }}
         >
           {cargando ? '🔄 Validando...' : '✅ Validar Código'}
+        </button>
+
+        <button 
+          onClick={ejecutarPruebas}
+          disabled={cargando || !codigoUsuario.trim()}
+          style={{
+            padding: '10px 15px',
+            backgroundColor: '#3498db',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: cargando || !codigoUsuario.trim() ? 'not-allowed' : 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          🔍 Ejecutar Pruebas
         </button>
 
         <button 
